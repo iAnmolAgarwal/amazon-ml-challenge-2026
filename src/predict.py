@@ -1,59 +1,54 @@
 import argparse
 import re
-from pathlib import Path
+import subprocess
+import sys
 
-import polars as pl
-
-from common import ROOT, load_attempt, load_config, load_test, load_train, read_table
+from common import ROOT, load_attempt, load_config, load_test, load_train
+from er import raw_dir, validator_path
 
 
 def next_sub_n(subdir):
-    nums = [int(m.group(1)) for p in subdir.glob("*.csv") if (m := re.match(r"(\d+)_", p.name))]
+    nums = [int(m.group(1)) for p in subdir.glob("*.tsv") if (m := re.match(r"(\d+)_", p.name))]
     return max(nums, default=0) + 1
 
 
-def validate(sub, sample, id_col):
-    errs = []
-    if list(sub.columns) != list(sample.columns):
-        errs.append(f"columns {sub.columns} != sample {sample.columns}")
-    if len(sub) != len(sample):
-        errs.append(f"rows {len(sub)} != sample {len(sample)}")
-    if id_col in sub.columns and id_col in sample.columns:
-        if sub[id_col].n_unique() != len(sub):
-            errs.append("duplicate ids")
-        if set(sub[id_col].to_list()) != set(sample[id_col].to_list()):
-            errs.append("id set differs from sample")
-    for c in sub.columns:
-        if sub[c].null_count():
-            errs.append(f"nulls in {c}")
-    return errs
+def write_lists(path, ids, lists, col):
+    with open(path, "w", newline="") as f:
+        f.write(f"source1_entity_id\t{col}\n")
+        for i, lst in zip(ids, lists):
+            seen = list(dict.fromkeys(x for x in lst if x[:3] in ("S2-", "S3-")))
+            f.write(f"{i}\t{','.join(seen)}\n")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("attempt_id")
     ap.add_argument("--config")
-    ap.add_argument("--no-validate", action="store_true")
     a = ap.parse_args()
     cfg = load_config(a.config)
+    cfg["pool"] = "test"
     mod = load_attempt(a.attempt_id)
     train, test = load_train(cfg), load_test(cfg)
-    pred = mod.fit_predict(train, test, cfg)
-    sample_path = Path(cfg["data_dir"]) / cfg["sample_submission"]
-    sample = read_table(sample_path) if sample_path.exists() else None
-    pred_col = [c for c in sample.columns if c != cfg["id_col"]][0] if sample is not None else cfg["target_col"]
-    sub = pl.DataFrame({cfg["id_col"]: test[cfg["id_col"]], pred_col: list(pred)})
-    if sample is not None:
-        sub = sample.select(cfg["id_col"]).join(sub, on=cfg["id_col"], how="left")
-        if not a.no_validate:
-            errs = validate(sub, sample, cfg["id_col"])
-            if errs:
-                raise SystemExit("submission invalid: " + "; ".join(errs))
+    out = mod.fit_predict(train, test, cfg)
+    matches = out["matches"] if isinstance(out, dict) else out
+    cands = out.get("candidates", matches) if isinstance(out, dict) else matches
     subdir = ROOT / "submissions"
     subdir.mkdir(exist_ok=True)
-    out = subdir / f"{next_sub_n(subdir):02d}_{a.attempt_id}.csv"
-    sub.write_csv(out)
-    print(f"wrote {out.relative_to(ROOT)} ({len(sub)} rows, validated={sample is not None and not a.no_validate})")
+    n = next_sub_n(subdir)
+    mpath = subdir / f"{n:02d}_{a.attempt_id}.tsv"
+    cpath = subdir / f"{n:02d}_{a.attempt_id}.candidates.tsv"
+    ids = test[cfg["id_col"]].to_list()
+    write_lists(mpath, ids, matches, "matched_entity_ids")
+    write_lists(cpath, ids, cands, "candidate_entity_ids")
+    print(f"wrote {mpath.relative_to(ROOT)} and {cpath.name}; {sum(1 for m in matches if m)} / {len(ids)} entities with matches")
+    v = validator_path(cfg)
+    if v is None:
+        print("WARNING: utils/validate_submission.py not found; not validated")
+        return
+    r = subprocess.run([sys.executable, str(v), "--matching", str(mpath), "--candidate", str(cpath), "--test-dir", str(raw_dir(cfg) / "test")], capture_output=True, text=True)
+    print(r.stdout[-3000:], r.stderr[-2000:])
+    if r.returncode != 0:
+        raise SystemExit("VALIDATION FAILED - do not upload")
 
 
 if __name__ == "__main__":

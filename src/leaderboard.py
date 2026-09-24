@@ -1,7 +1,7 @@
 import argparse
 import re
 
-from common import ROOT, read_json
+from common import ROOT, paired_gain, read_json
 
 
 def parent_of(d):
@@ -43,11 +43,12 @@ def main():
             pr = info.get(v["parent"], {}).get("res") if v["parent"] else None
             delta = ""
             if pr:
-                sign = 1 if r["higher_is_better"] else -1
-                dlt = sign * (r["mean"] - pr["mean"])
-                ref_std = max(pr["std"], 1e-12)
-                flag = "  ** >1 std" if dlt > ref_std else ("  xx worse" if dlt < -ref_std else "  ~ noise")
-                delta = f"  Δ={dlt:+.5f}{flag}"
+                g = paired_gain(r, pr)
+                if g is None:
+                    delta = f"  Δ={(r['mean'] - pr['mean']):+.5f}  (folds differ: no paired test)"
+                else:
+                    flag = "  ** significant gain" if g["significant"] else ("  xx significantly worse" if g["worse"] else "  ~ noise")
+                    delta = f"  Δ={g['mean']:+.5f} se={g['se']:.5f} wins={g['wins']}/{g['n']}{flag}"
             star = "  <BEST>" if k == best else ""
             print(f"{pad}{k}  {r['metric']}={r['mean']:.5f}±{r['std']:.5f}  n={r['n_rows']}  {r['runtime_s']:.0f}s  @{r['git_commit']}{delta}{star}")
         for c in children.get(k, []):

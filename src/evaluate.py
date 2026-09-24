@@ -18,6 +18,7 @@ def main():
     ap.add_argument("--config")
     a = ap.parse_args()
     cfg = load_config(a.config)
+    cfg["pool"] = "train"
     mod = load_attempt(a.attempt_id)
     metric_name = getattr(mod, "METRIC", cfg["metric"])
     metric, higher = get_metric(metric_name)
@@ -25,16 +26,25 @@ def main():
     if a.subsample < 1.0:
         df = df.sample(fraction=a.subsample, seed=cfg["seed"], shuffle=True)
     fold_ids = [int(f) for f in a.folds.split(",")] if a.folds else sorted(df["fold"].unique().to_list())
-    scores, times = [], []
+    scores, times, cand = [], [], []
     t_all = time.time()
     for f in fold_ids:
         tr, va = df.filter(pl.col("fold") != f).drop("fold"), df.filter(pl.col("fold") == f).drop("fold")
         t0 = time.time()
-        pred = mod.fit_predict(tr, va.drop(cfg["target_col"]), cfg)
-        s = metric(va[cfg["target_col"]].to_list(), list(pred))
+        out = mod.fit_predict(tr, va.drop(cfg["target_col"]), cfg)
+        pred = out["matches"] if isinstance(out, dict) else out
+        yt = va[cfg["target_col"]].to_list()
+        s = metric(yt, list(pred))
         scores.append(s)
         times.append(time.time() - t0)
-        print(f"fold {f}: {metric_name}={s:.5f} ({times[-1]:.1f}s)", flush=True)
+        extra = ""
+        if isinstance(out, dict) and "candidates" in out:
+            from er import candidate_stats
+
+            cs = candidate_stats(yt, out["candidates"])
+            cand.append(cs)
+            extra = f" | cand recall={cs['pair_recall']:.4f} oracle={cs['oracle_f05']:.4f} avg={cs['avg_candidates']:.1f}"
+        print(f"fold {f}: {metric_name}={s:.5f} ({times[-1]:.1f}s){extra}", flush=True)
     res = {
         "attempt_id": a.attempt_id,
         "metric": metric_name,
@@ -46,6 +56,7 @@ def main():
         "runtime_s": time.time() - t_all,
         "fold_runtime_s": times,
         "subsample": a.subsample,
+        "candidates": {k: float(np.mean([c[k] for c in cand])) for k in cand[0]} if cand else None,
         "n_rows": len(df),
         "git_commit": git_commit(),
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),

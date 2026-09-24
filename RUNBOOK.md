@@ -57,13 +57,15 @@ EC2 (only if activated + quota): see `scripts/setup_ec2.sh` and `docs/aws-setup.
 Human types `checkpoint` in the leader session. Leader reads leaderboard (`python src/leaderboard.py`), log.csv, assignments, queue; appends to `orchestration/checkpoints.md`; rewrites `orchestration/assignments.md`. Human relays new assignments to W1/W2 ("read your section of assignments.md").
 
 ## Submission sequence (exact)
-1. Leader proposes a candidate (beats best CV by >1 std) and prints only: commit hash, attempt ids.
+1. Leader proposes a candidate (significant paired gain over the best submitted attempt) and prints only: commit hash, attempt ids.
 2. Human fills `{COMMIT_HASH}` `{ATTEMPT_IDS}` in `prompts/codex_audit.md`, runs Codex CLI in the repo with that prompt.
 3. Human pastes Codex's verdict verbatim into the leader session. Leader answers every finding; "fix first" -> worker fixes, re-evaluate, back to step 1.
-4. `python src/predict.py <attempt_id>` -> `submissions/NN_<attempt_id>.csv` (validated against sample_submission).
-5. Human uploads the csv on the platform, notes the public score.
-6. `python src/submit_log.py submissions/NN_<attempt_id>.csv --lb <score> --notes "..."` -> log.csv row + git tag `sub-NN`. Commit.
-Budget: first baseline within ~3h; keep 2 submissions for the end (final ensemble + safer fallback). Ties go to the earlier submission, so submit a clearly better candidate as soon as it is audited.
+4. `python src/predict.py <attempt_id>` -> `submissions/NN_<attempt_id>.tsv` (matches), `.candidates.tsv`, `_code.zip`; runs the official validator and stops on FAIL.
+5. `python src/sub_status.py` -> confirm a submission is left today. Human uploads the .tsv AND the _code.zip on Unstop (both are required), clicks Submit & Evaluate.
+6. Immediately: `python src/submit_log.py submissions/NN_<attempt_id>.tsv --notes "<what changed>"` (budget check, log row, git tag sub-NN). When the score shows: `python src/submit_log.py --set-lb NN <score>`. Commit log.csv.
+7. `python src/sub_status.py` again: LB-CV gap, rank agreement, and whether an unsubmitted attempt now shows a significant paired gain over the best submitted attempt. The leader reads this at every checkpoint.
+
+Budget: 5 per IST day (reset assumed at 00:00 IST, unused ones do not carry over), 15 total. Plan: day 1 baseline within ~3h + up to 4 audited improvements; day 2 up to 5; day 3 up to 3 + final ensemble + safer fallback. Never submit two candidates without a significant paired gain between them: the LB score of the second teaches nothing. Ties go to the earlier submission.
 
 ## 72h timeline (IST)
 - 00:00-03:00 (h0-3): human reads rules; set config.yaml (id/target/metric/cv); `python src/split.py`; leader + workers run EDA into research/insights.md; baseline attempt; audit; submission #1.

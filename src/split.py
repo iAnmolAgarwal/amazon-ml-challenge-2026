@@ -23,7 +23,8 @@ def main():
     group_col = a.group_col or cv.get("group_col")
     df = load_train(cfg)
     ids = df[cfg["id_col"]].to_numpy()
-    y = df[cfg["target_col"]].to_numpy() if cfg["target_col"] in df.columns else None
+    sc = cv.get("strat_col") or cfg["target_col"]
+    y = df[sc].to_numpy() if sc in df.columns else None
     folds = np.zeros(len(df), dtype=np.int32)
     if kind == "stratified":
         it = StratifiedKFold(n, shuffle=True, random_state=a.seed).split(ids, y)

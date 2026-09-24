@@ -5,13 +5,14 @@ dtype: float32
 num_workers: 2
 seed: 42
 
-train_file: train.csv
-test_file: test.csv
-sample_submission: sample_submission.csv
-id_col: id
-target_col: target
-metric: f1_macro
+raw_subdir: student_resource
+train_file: train_s1.parquet
+test_file: test_s1.parquet
+id_col: entity_id
+target_col: matched_entity_ids
+metric: f05_er
 cv:
   type: stratified
   n_folds: 5
+  strat_col: strat
   group_col: null

@@ -24,7 +24,7 @@ TEMPLATE = """# {id}
 (expected CV delta in metric units and std; what could go wrong)
 
 ## Kill condition
-(measurable: e.g. "no >1 std gain after 2 iterations" or "runtime > 30 min/fold")
+(measurable: e.g. "no significant paired gain after 2 iterations" or "runtime > 30 min/fold")
 
 ## Result
 (fill after evaluate: CV mean/std vs parent, what it shows, next idea)
