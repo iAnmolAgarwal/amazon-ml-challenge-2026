@@ -25,6 +25,15 @@ Smoke test 24 Sep 2026, machine already at 1.5 GB free + 3 GB swap from other ap
 | image embedding | clip-ViT-B-32 (512d) | ~63 | 63 (200 jpg 224px, from disk) | ~27 min |
 | TF-IDF + logreg CV | 000_example | 2000 rows, 5 folds | 4 s total | - |
 
+### Measured on EC2 r7a.2xlarge (25 Sep, 20k US train queries, sparse_dot_topn 1.2.0, 8 threads)
+| View | Pool | Method | Queries/s per 1M pool rows |
+|---|---|---|---|
+| name char 3-grams | 1M | one call / 500k / 250k / 125k chunks | 751 / 1,561 / 2,109 / 2,557 |
+| name char 3-grams | 2M | one call / 500k / 250k / 125k chunks | 451 / 1,533 / 2,103 / 2,560 |
+| name+address word 1-2 grams | 2M | one call / 250k / 125k chunks | 1,100 / 6,069 / 7,417 |
+| name+address word 1-2 grams | 6.2M (full US train) | 250k / 125k chunks | 6,669 / 8,083 |
+Always split the pool into 125k-row chunks and merge with zip_sp_matmul_topn. Transposes cost 0.2-2 s (negligible). EC2 is about 1.25x the Mac on the same call.
+
 Rules of thumb: MiniLM/e5-small text up to ~500k items stays on the Mac (<1h). CLIP-B/32 images up to ~100k stay on the Mac; beyond that, or any ViT-L / fine-tuning, go to Kaggle (T4/P100: expect 5-15x). Re-measure on real data (first chunk prints items/s and ETA) before deciding; write the number here.
 
 ## Memory rules (8GB unified)
