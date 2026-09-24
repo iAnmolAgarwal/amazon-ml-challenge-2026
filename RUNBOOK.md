@@ -67,6 +67,21 @@ Human types `checkpoint` in the leader session. Leader reads leaderboard (`pytho
 
 Budget: 5 per IST day (reset assumed at 00:00 IST, unused ones do not carry over), 15 total. Plan: day 1 baseline within ~3h + up to 4 audited improvements; day 2 up to 5; day 3 up to 3 + final ensemble + safer fallback. Never submit two candidates without a significant paired gain between them: the LB score of the second teaches nothing. Ties go to the earlier submission.
 
+## Astra 6 review gates (human relays; every session follows this)
+At each gate the session that reached it writes `docs/astra/NN_<topic>_prompt.md` (self-contained: problem, current state, measured numbers, exact question, required output format), copies it to the clipboard and tells the human. The human pastes Astra 6's answer back; it is saved as `docs/astra/NN_<topic>_feedback.md`. An independent Opus subagent then audits every finding against the code and training data; only findings it agrees with are adopted, and the dropped ones are reported with reasons.
+
+| # | Gate | When |
+|---|---|---|
+| 1-3 | Strategy, compute plan, chunking claim | done (25 Sep, night) |
+| 4 | Baseline pipeline design + first CV numbers (blocking recall, oracle F0.5, macro F0.5 by country) | before the first full test run |
+| 5 | Submission 1 result: CV vs public LB, loss breakdown, worker directions | after the first LB score, before workers start |
+| 6 | Every checkpoint (4-6 h): leaderboard tree, loss breakdown, direction changes | at each "checkpoint" |
+| 7 | Any submission candidate: pipeline diff + CV evidence (in addition to the Codex code audit) | before each upload |
+| 8 | Final ensemble + safer fallback choice | about hour 60 |
+| 9 | Methodology document and final package | before the final zip |
+
+Keep each prompt under ~2,000 words and never include test-set rows or credentials.
+
 ## 72h timeline (IST)
 - 00:00-03:00 (h0-3): human reads rules; set config.yaml (id/target/metric/cv); `python src/split.py`; leader + workers run EDA into research/insights.md; baseline attempt; audit; submission #1.
 - h3-60: workers loop within assigned directions; checkpoint at ~h6, h12, h18, h24, h30, h36, h42, h48, h54; queue long jobs (embeddings, full CV of slow models) via tsp before sleep, Kaggle jobs overnight.
