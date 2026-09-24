@@ -8,11 +8,13 @@ No secrets live in this repo. Access keys are only in `~/.aws/credentials` under
 | Region | `us-east-1` (EC2 in every other region is explicitly denied) |
 | Working profile | `amlc` (IAM user `amlc-agent`, inline policy `amlc-agent-guardrails`) |
 | Admin profile | `agent-toolkit` (root, browser `aws login`); use only for IAM/billing changes |
-| S3 bucket | `amlc-2026-c77a54ac` (private, Block Public Access on) - **not yet created, account S3 not activated** |
+| S3 bucket | `amlc-2026-c77a54ac` (us-east-1, private, Block Public Access on all four settings; `amlc` can list/put/get/delete) |
 | Allowed instance types | `g5.xlarge`, `g5.2xlarge`, `t3.medium` |
 | Required launch tag | `project=amazon-ml-2026` (untagged launches are denied; start/stop/terminate only on tagged instances) |
 | Budget | `amlc-2026`, 100 USD/month, email alerts at 50/80/100% actual and 100% forecasted |
-| GPU quota (us-east-1) | On-Demand G/VT (L-DB2E81BA): 0 vCPU; Spot G/VT (L-3819A6DF): 0 vCPU. Increase to 8 **not yet requested** (pending EC2 activation) |
+| GPU quota (us-east-1) | On-Demand G/VT (L-DB2E81BA) and Spot G/VT (L-3819A6DF): 0 vCPU today; increase to 8 vCPU **requested 2026-09-24, PENDING** (request ids c88d311d..., 4e6a0722...). Check: `aws service-quotas get-service-quota --profile agent-toolkit --region us-east-1 --service-code ec2 --quota-code L-DB2E81BA --query Quota.Value` |
+
+Account activated 2026-09-24 (support case 179026914900549). Policy verified with `run-instances --dry-run`: g5.xlarge/t3.medium tagged in us-east-1 pass; p4d, untagged, and other-Region launches are denied.
 
 ## Launching an instance
 
