@@ -16,6 +16,16 @@ No secrets live in this repo. Access keys are only in `~/.aws/credentials` under
 
 Account activated 2026-09-24 (support case 179026914900549). Policy verified with `run-instances --dry-run`: g5.xlarge/t3.medium tagged in us-east-1 pass; p4d, untagged, and other-Region launches are denied.
 
+## SageMaker
+| Item | Value |
+|---|---|
+| Execution role | `amlc-sagemaker-exec` (trust: sagemaker.amazonaws.com; S3 only on the project bucket, logs under /aws/sagemaker/*) |
+| GPU notebook quota | ml.g5.xlarge for notebook instance usage (L-E8917BB7): requested 1 on 2026-09-24, PENDING |
+| CPU notebook quota | ml.t3.medium notebook instances: 2 (usable now) |
+| Studio domains | L-B683BCB0 applied 0 (default 2); restore requested on support case 179026914900549 |
+
+Create the notebook in the console (root): SageMaker > Notebook instances > Create, type ml.g5.xlarge, role amlc-sagemaker-exec, tag project=amazon-ml-2026. Stop it whenever idle; it bills hourly.
+
 ## Launching an instance
 
 Tag the instance (and its volumes) at launch:
