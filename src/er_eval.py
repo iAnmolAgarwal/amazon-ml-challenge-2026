@@ -68,7 +68,7 @@ def main():
     )
     scores = [float(ent.filter(pl.col("fold") == f)["f05"].mean()) for f in fold_ids]
     by_c = ent.group_by("country_n").agg(pl.col("f05").mean(), pl.col("oracle").mean(), pl.len()).sort("country_n")
-    by_t = ent.group_by(pl.col("t").clip(0, 6).alias("true_matches")).agg(pl.col("f05").mean(), pl.col("oracle").mean(), (pl.col("k") - pl.col("t")).mean().alias("k_minus_t"), pl.len()).sort("true_matches")
+    by_t = ent.group_by(pl.col("t").clip(0, 6).alias("true_matches")).agg(pl.col("f05").mean(), pl.col("oracle").mean(), (pl.col("k").cast(pl.Int64) - pl.col("t").cast(pl.Int64)).mean().alias("k_minus_t"), pl.len()).sort("true_matches")
     cw = {r["country_n"]: r["f05"] for r in by_c.to_dicts()}
     tw = sum(TEST_WEIGHTS[c] * cw[c] for c in TEST_WEIGHTS if c in cw) / sum(TEST_WEIGHTS[c] for c in TEST_WEIGHTS if c in cw)
     tp = ent["tp"].sum(); k = ent["k"].sum(); t_ = ent["t"].sum()

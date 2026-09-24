@@ -22,10 +22,11 @@ WEB = re.compile(r"(?:https?://)?(?:www\.)?([0-9a-z\-]+(?:\.[0-9a-z\-]+)*)\.(?:c
 ALT = re.compile(r"(?:\b(?:formerly|previously|now)\s+known\s+as\b|\b(?:formerly|previously|dba|d/b/a|trading as|t/a)\b|\ba\.?k\.?a\.?(?!\w))\s*:?\s*", re.I)
 MS = re.compile(r"^\W*m\s*[/.]\s*s\b\.?\s*", re.I)
 LEET = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"})
-PREFIX = {"the", "m", "mr", "mrs", "ms", "miss", "shri", "sri", "shree", "smt", "dr", "prof"}
+PREFIX = {"the", "m", "mr", "mrs", "ms", "miss", "shri", "sri", "shree", "smt", "dr", "prof", "mme", "mlle"}
 LEGAL = {
     "pvt", "private", "ltd", "limited", "llc", "inc", "incorporated", "corp", "corporation", "co", "company",
     "llp", "lp", "plc", "pllc", "pc", "pa", "sarl", "sas", "sa", "eurl", "sasu", "sci", "snc", "gmbh", "ag", "opc", "pte", "pty",
+    "selarl", "selas", "scp", "eirl",
 }
 NAME_ABBR = {"&": "and", "intl": "international", "mfg": "manufacturing", "svcs": "services", "svc": "service", "bros": "brothers", "assoc": "associates", "mgmt": "management", "tech": "technologies"}
 ADDR_ABBR = {
@@ -36,6 +37,10 @@ ADDR_ABBR = {
     "sect": "sector", "rte": "route", "chem": "chemin", "imp": "impasse", "fbg": "faubourg", "cir": "circle", "trl": "trail", "ter": "terrace",
 }
 HOUSE = re.compile(r"(?:#|\b(?:h\.?\s?no|hno|house no|door no|d\.?\s?no|plot no|flat no|shop no|survey no|sy no|kh no|khasra no|no|number)\.?\s*[:\-]?\s*)(\d+[a-z]?)\b", re.I)
+FR_ABBR = {"st": "saint", "ste": "sainte", "r": "rue", "all": "allee", "ter": "ter", "bd": "boulevard", "boul": "boulevard", "av": "avenue", "ave": "avenue", "rte": "route", "chem": "chemin", "imp": "impasse", "pl": "place", "sq": "square", "fg": "faubourg", "fbg": "faubourg", "qu": "quai"}
+FR_SKIP = {"rue", "avenue", "boulevard", "place", "chemin", "impasse", "allee", "route", "quai", "square", "faubourg", "cours", "passage", "de", "du", "des", "la", "le", "les", "l", "d", "bis", "ter", "quater", "saint", "sainte"}
+FR_STREET = r"(?:rue|r|avenue|av|ave|bd|boulevard|boul|place|pl|chemin|chem|impasse|imp|allee|all|route|rte|quai|square|sq|faubourg|fbg|fg|cours|passage|voie|sentier|villa|hameau|lieu[- ]dit|residence|cite)"
+FR_POSTREF = re.compile(r"\b(?:bp|cs|tsa|cedex)\s*\d+\b", re.I)
 SUBUNIT = re.compile(r"\b(?:suite|ste|apt|apartment|unit|room|rm|fl|floor|po box|p\.?o\.? box|box)\.?\s*#?\s*\d+[a-z]?\b", re.I)
 NUM = re.compile(r"\d+")
 EMPTY = {"", "none", "null", "nan", "na", "n/a", "-"}
@@ -43,7 +48,7 @@ EMPTY = {"", "none", "null", "nan", "na", "n/a", "-"}
 
 def fold(s):
     """Lowercase with NFKC, strip combining marks only when they follow a Latin letter (Indic vowel signs are kept)."""
-    s = unicodedata.normalize("NFKD", unicodedata.normalize("NFKC", s or "")).lower()
+    s = unicodedata.normalize("NFKD", unicodedata.normalize("NFKC", s or "")).lower().replace("\u0153", "oe").replace("\u00e6", "ae")
     out, prev_latin = [], False
     for ch in s:
         if unicodedata.combining(ch) and prev_latin:
@@ -62,7 +67,7 @@ def merge_split_legal(toks):
     """Re-join legal words broken by stray spaces ('li mited', 'pri vate', 'l l c') when the concatenation is a legal word."""
     out, i = [], 0
     while i < len(toks):
-        for n in (3, 2):
+        for n in (4, 3, 2):
             if i + n <= len(toks) and "".join(toks[i : i + n]) in LEGAL:
                 out.append("".join(toks[i : i + n]))
                 i += n
@@ -85,8 +90,8 @@ def strip_web_legal(tok):
     return tok
 
 
-def name_views(raw):
-    """Return (core tokens, alt-name core tokens, is_web) for a business name."""
+def name_views(raw, france=False):
+    """Return (core tokens, alt-name core tokens, is_web) for a business name ('st' -> 'saint' for France)."""
     s = MS.sub(" ", fold(raw))
     alt = ""
     m = ALT.search(s)
@@ -105,6 +110,8 @@ def name_views(raw):
 
     def core(x):
         toks = merge_split_legal([deleet(NAME_ABBR.get(t, t)) for t in TOKEN.findall(x.replace("&", " and "))])
+        if france:
+            toks = ["saint" if t == "st" else t for t in toks]
         while toks and toks[0] in PREFIX:
             toks = toks[1:]
         kept = [t for i, t in enumerate(toks) if not ((t in LEGAL and (t != "co" or i > 0)) or t == "and")]
@@ -118,9 +125,15 @@ def join_key(toks):
     return "".join(toks)
 
 
-def addr_views(raw):
-    """Return (address tokens, house number, postal code, all numbers) for an address."""
+def addr_views(raw, france=False):
+    """Return (address tokens, house number, postal code, all numbers, raw house token) for an address.
+
+    France (gated): postal-service references (BP/CS/TSA/CEDEX n) are not house numbers, house numbers
+    accept bis/ter/quater suffixes, and 5-digit postcodes are skipped in the house fallback.
+    """
     s = fold(raw)
+    if france:
+        s = FR_POSTREF.sub(" ", s)
     if s.strip() in EMPTY:
         return [], "", "", [], ""
     h = HOUSE.search(s)
@@ -130,12 +143,16 @@ def addr_views(raw):
         house_raw = h.group(1)
     else:
         rest = SUBUNIT.sub(" ", s)
-        first = re.search(r"\b(\d+[a-z]?)\b", rest)
+        if france:
+            first = re.search(r"\b(\d{1,4})\s*(?:bis|ter|quater|[a-z])?\s*,?\s*" + FR_STREET + r"\b", rest)
+        else:
+            first = re.search(r"\b(\d+[a-z]?)\b", rest)
         house_raw = first.group(1) if first else ""
     house = re.sub(r"[a-z]$", "", house_raw).lstrip("0") or ("0" if house_raw else "")
     cands = [n for n in all_nums if len(n) in (5, 6) and (n.lstrip("0") or "0") != house]
     postal = cands[-1] if cands else ""
-    toks = [ADDR_ABBR.get(t, t) for t in TOKEN.findall(s)]
+    abbr = {**ADDR_ABBR, **FR_ABBR} if france else ADDR_ABBR
+    toks = [abbr.get(t, t) for t in TOKEN.findall(s)]
     toks = [t.lstrip("0") or "0" if t.isdigit() else t for t in toks]
     return toks, house, postal, nums, house_raw.lstrip("0")
 
@@ -145,11 +162,13 @@ def normalize_rows(rows):
     out = []
     stop = {"no", "number", "h", "hno", "house", "door", "plot", "flat", "shop", "unit", "survey", "kh", "khasra", "suite", "apartment", "floor", "d", "sy"}
     for eid, name, addr, country in rows:
-        core, alt, is_web = name_views(name)
-        atoks, house, postal, nums, house_tok = addr_views(addr)
+        france = fold(country).strip() == "france"
+        core, alt, is_web = name_views(name, france)
+        atoks, house, postal, nums, house_tok = addr_views(addr, france)
+        skip = stop | FR_SKIP if france else stop
         anchor = house_tok if house_tok in atoks else house
         after = atoks[atoks.index(anchor) + 1 :] if anchor and anchor in atoks else atoks
-        street = next((t for t in after if not t[0].isdigit() and t not in stop), "") or next((t for t in atoks if not t[0].isdigit() and t not in stop), "")
+        street = next((t for t in after if not t[0].isdigit() and t not in skip), "") or next((t for t in atoks if not t[0].isdigit() and t not in skip), "")
         out.append({
             "entity_id": eid,
             "country_n": fold(country).strip(),
