@@ -104,11 +104,17 @@ def build(split, tag, batch=4_000_000):
         base = base.with_columns([pl.col(x).cast(pl.Float32) for x in base.columns if x.startswith("k_")])
         acr = (p["initials"] == p["name_join_p"]).cast(pl.Float32).alias("acronym")
         je = (p["name_join"] == p["name_join_p"]).cast(pl.Float32).alias("join_eq")
-        parts.append(pl.concat([base, sf], how="horizontal").with_columns(acr, je))
+        part = out_dir / f"{split}_feat{tag}.part{s // batch:04d}.parquet"
+        pl.concat([base, sf], how="horizontal").with_columns(acr, je).write_parquet(part)
+        parts.append(part)
+        del p, sf, base
         print(f"  batch {s // batch + 1}/{(len(cand) + batch - 1) // batch}: {len(c):,} pairs in {time.time() - tb:.0f}s", flush=True)
-    feat = pl.concat(parts)
-    feat.write_parquet(out_dir / f"{split}_feat{tag}.parquet")
-    print(f"wrote {split}_feat{tag}.parquet {feat.shape} in {time.time() - t:.0f}s")
+    final = out_dir / f"{split}_feat{tag}.parquet"
+    pl.scan_parquet(parts).sink_parquet(final)
+    for part in parts:
+        part.unlink()
+    n = pl.scan_parquet(final).select(pl.len()).collect().item()
+    print(f"wrote {final.name} ({n:,} rows) in {time.time() - t:.0f}s")
 
 
 def main():
