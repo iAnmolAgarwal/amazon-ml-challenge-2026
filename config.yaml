@@ -1,0 +1,17 @@
+data_dir: data
+cache_dir: cache
+device: mps
+dtype: float32
+num_workers: 2
+seed: 42
+
+train_file: train.csv
+test_file: test.csv
+sample_submission: sample_submission.csv
+id_col: id
+target_col: target
+metric: f1_macro
+cv:
+  type: stratified
+  n_folds: 5
+  group_col: null
