@@ -38,7 +38,8 @@ def main():
     gold = M.load_gold(cfg, s1)
     fo = M.folds(cfg, s1, gold)
     feat = pl.read_parquet(Path(cfg["cache_dir"]) / "feat" / f"train_feat{a.tag}.parquet")
-    ents = s1.filter(pl.col("s1_idx").is_in(feat["s1_idx"].unique().implode())) if a.tag else s1
+    side = Path(cfg["cache_dir"]) / "cand" / f"train_s1{a.tag}.parquet"
+    ents = s1.join(pl.read_parquet(side), on="s1_idx", how="semi") if side.exists() else s1
     ents = ents.join(fo.select("s1_idx", "fold"), on="s1_idx")
     feat = feat.join(fo.select("s1_idx", "fold"), on="s1_idx").join(gold.with_columns(y=pl.lit(1, pl.Int8)), on=["s1_idx", "pool_idx"], how="left").with_columns(pl.col("y").fill_null(0))
     cols = M.feature_cols(feat, getattr(mod, "FEATURES", None))

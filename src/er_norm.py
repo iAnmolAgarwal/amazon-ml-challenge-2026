@@ -19,12 +19,12 @@ from common import load_config
 
 TOKEN = re.compile(r"[0-9a-zÀ-ɏऀ-෿]+")
 WEB = re.compile(r"(?:https?://)?(?:www\.)?([0-9a-z\-]+(?:\.[0-9a-z\-]+)*)\.(?:com|in|net|org|co|biz|info|us|fr|co\.in)\b")
-ALT = re.compile(r"\b(?:formerly|previously|dba|d/b/a|aka|a\.k\.a\.|trading as|t/a|now known as)\b\s*:?\s*", re.I)
+ALT = re.compile(r"(?:\b(?:formerly|previously|now)\s+known\s+as\b|\b(?:formerly|previously|dba|d/b/a|trading as|t/a)\b|\ba\.?k\.?a\.?(?!\w))\s*:?\s*", re.I)
+MS = re.compile(r"^\W*m\s*[/.]\s*s\b\.?\s*", re.I)
 LEET = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"})
-PREFIX = {"the", "m", "mr", "mrs", "ms", "miss", "shri", "sri", "shree", "smt", "dr", "prof", "m/s", "ms."}
-LEGAL_JOIN = sorted(["privatelimited", "limited", "private", "pvtltd", "pvt", "ltd", "llc", "incorporated", "inc", "corporation", "corp", "company", "llp", "plc", "pllc", "sarl", "sasu", "sas", "eurl", "gmbh", "co"], key=len, reverse=True)
+PREFIX = {"the", "m", "mr", "mrs", "ms", "miss", "shri", "sri", "shree", "smt", "dr", "prof"}
 LEGAL = {
-    "pvt", "private", "ltd", "limited", "llc", "l", "c", "inc", "incorporated", "corp", "corporation", "co", "company",
+    "pvt", "private", "ltd", "limited", "llc", "inc", "incorporated", "corp", "corporation", "co", "company",
     "llp", "lp", "plc", "pllc", "pc", "pa", "sarl", "sas", "sa", "eurl", "sasu", "sci", "snc", "gmbh", "ag", "opc", "pte", "pty",
 }
 NAME_ABBR = {"&": "and", "intl": "international", "mfg": "manufacturing", "svcs": "services", "svc": "service", "bros": "brothers", "assoc": "associates", "mgmt": "management", "tech": "technologies"}
@@ -35,7 +35,8 @@ ADDR_ABBR = {
     "sw": "southwest", "mt": "mount", "ft": "fort", "nr": "near", "opp": "opposite", "ngr": "nagar", "clny": "colony", "sec": "sector",
     "sect": "sector", "rte": "route", "chem": "chemin", "imp": "impasse", "fbg": "faubourg", "cir": "circle", "trl": "trail", "ter": "terrace",
 }
-HOUSE = re.compile(r"(?:#|\b(?:h\.?\s?no|hno|house no|door no|d\.?\s?no|plot no|flat no|shop no|survey no|sy no|kh no|khasra no|no|number)\.?\s*[:\-]?\s*)(\d+[a-z]?)", re.I)
+HOUSE = re.compile(r"(?:#|\b(?:h\.?\s?no|hno|house no|door no|d\.?\s?no|plot no|flat no|shop no|survey no|sy no|kh no|khasra no|no|number)\.?\s*[:\-]?\s*)(\d+[a-z]?)\b", re.I)
+SUBUNIT = re.compile(r"\b(?:suite|ste|apt|apartment|unit|room|rm|fl|floor|po box|p\.?o\.? box|box)\.?\s*#?\s*\d+[a-z]?\b", re.I)
 NUM = re.compile(r"\d+")
 EMPTY = {"", "none", "null", "nan", "na", "n/a", "-"}
 
@@ -57,9 +58,36 @@ def deleet(tok):
     return tok.translate(LEET) if any(c.isdigit() for c in tok) and any(c.isalpha() for c in tok) else tok
 
 
+def merge_split_legal(toks):
+    """Re-join legal words broken by stray spaces ('li mited', 'pri vate', 'l l c') when the concatenation is a legal word."""
+    out, i = [], 0
+    while i < len(toks):
+        for n in (3, 2):
+            if i + n <= len(toks) and "".join(toks[i : i + n]) in LEGAL:
+                out.append("".join(toks[i : i + n]))
+                i += n
+                break
+        else:
+            out.append(toks[i])
+            i += 1
+    return out
+
+
+def strip_web_legal(tok):
+    """Remove a trailing legal word glued inside a website token ('rangareddymillsprivate' -> 'rangareddymills')."""
+    changed = True
+    while changed:
+        changed = False
+        for w in ("privatelimited", "limited", "private", "pvtltd", "pvt", "ltd", "llc", "inc", "corporation", "corp", "company"):
+            if tok.endswith(w) and len(tok) - len(w) >= 3:
+                tok, changed = tok[: -len(w)], True
+                break
+    return tok
+
+
 def name_views(raw):
     """Return (core tokens, alt-name core tokens, is_web) for a business name."""
-    s = fold(raw)
+    s = MS.sub(" ", fold(raw))
     alt = ""
     m = ALT.search(s)
     if m:
@@ -67,13 +95,16 @@ def name_views(raw):
         if not TOKEN.search(s):
             s, alt = alt, ""
     is_web = 0
+    web_tok = None
     w = WEB.search(s)
     if w:
-        s = s[: w.start()] + " " + w.group(1).replace(".", " ").replace("-", " ") + " " + s[w.end():]
+        parts = w.group(1).replace("-", " ").split(".")
+        web_tok = strip_web_legal(parts[-1].replace(" ", ""))
+        s = s[: w.start()] + " " + " ".join(parts[:-1] + [web_tok]) + " " + s[w.end():]
         is_web = 1
 
     def core(x):
-        toks = [deleet(NAME_ABBR.get(t, t)) for t in TOKEN.findall(x.replace("&", " and "))]
+        toks = merge_split_legal([deleet(NAME_ABBR.get(t, t)) for t in TOKEN.findall(x.replace("&", " and "))])
         while toks and toks[0] in PREFIX:
             toks = toks[1:]
         kept = [t for i, t in enumerate(toks) if not ((t in LEGAL and (t != "co" or i > 0)) or t == "and")]
@@ -83,44 +114,42 @@ def name_views(raw):
 
 
 def join_key(toks):
-    """Space-free name with legal words stripped from both ends of the joined string (handles 'Li mited', 'Llc X')."""
-    j = "".join(toks)
-    changed = True
-    while changed and j:
-        changed = False
-        for w in LEGAL_JOIN:
-            if j.endswith(w) and len(j) > len(w) + 2:
-                j, changed = j[: -len(w)], True
-                break
-            if j.startswith(w) and len(j) > len(w) + 2 and w in ("llc", "inc", "pvt", "ltd", "the"):
-                j, changed = j[len(w):], True
-                break
-    return j
+    """Space-free name from whole tokens (legal words already removed as tokens); undoes word splits and website gluing."""
+    return "".join(toks)
 
 
 def addr_views(raw):
     """Return (address tokens, house number, postal code, all numbers) for an address."""
     s = fold(raw)
     if s.strip() in EMPTY:
-        return [], "", "", []
+        return [], "", "", [], ""
     h = HOUSE.search(s)
-    nums = [n.lstrip("0") or "0" for n in NUM.findall(s)]
-    house = (h.group(1).lstrip("0") or "0") if h else (nums[0] if nums else "")
-    postal = next((n for n in NUM.findall(s) if len(n) in (5, 6)), "")
+    all_nums = NUM.findall(s)
+    nums = [n.lstrip("0") or "0" for n in all_nums]
+    if h:
+        house_raw = h.group(1)
+    else:
+        rest = SUBUNIT.sub(" ", s)
+        first = re.search(r"\b(\d+[a-z]?)\b", rest)
+        house_raw = first.group(1) if first else ""
+    house = re.sub(r"[a-z]$", "", house_raw).lstrip("0") or ("0" if house_raw else "")
+    cands = [n for n in all_nums if len(n) in (5, 6) and (n.lstrip("0") or "0") != house]
+    postal = cands[-1] if cands else ""
     toks = [ADDR_ABBR.get(t, t) for t in TOKEN.findall(s)]
     toks = [t.lstrip("0") or "0" if t.isdigit() else t for t in toks]
-    return toks, re.sub(r"[a-z]$", "", house), postal, nums
+    return toks, house, postal, nums, house_raw.lstrip("0")
 
 
 def normalize_rows(rows):
     """Normalize a list of (entity_id, name, address, country) tuples into view dicts."""
     out = []
+    stop = {"no", "number", "h", "hno", "house", "door", "plot", "flat", "shop", "unit", "survey", "kh", "khasra", "suite", "apartment", "floor", "d", "sy"}
     for eid, name, addr, country in rows:
         core, alt, is_web = name_views(name)
-        atoks, house, postal, nums = addr_views(addr)
-        stop = {"no", "number", "h", "hno", "house", "door", "plot", "flat", "shop", "unit", "survey", "kh", "khasra", "suite", "apartment", "floor", "d", "sy"}
-        after = atoks[atoks.index(house) + 1 :] if house and house in atoks else atoks
-        street = next((t for t in after if not t.isdigit() and t not in stop), "") or next((t for t in atoks if not t.isdigit() and t not in stop), "")
+        atoks, house, postal, nums, house_tok = addr_views(addr)
+        anchor = house_tok if house_tok in atoks else house
+        after = atoks[atoks.index(anchor) + 1 :] if anchor and anchor in atoks else atoks
+        street = next((t for t in after if not t[0].isdigit() and t not in stop), "") or next((t for t in atoks if not t[0].isdigit() and t not in stop), "")
         out.append({
             "entity_id": eid,
             "country_n": fold(country).strip(),
@@ -144,9 +173,15 @@ def normalize_frame(df, workers=None, chunk=50_000):
     """Normalize a polars frame with entity_id, business_name, business_address, country using all cores."""
     rows = list(zip(*(df[c].fill_null("").to_list() for c in ("entity_id", "business_name", "business_address", "country"))))
     parts = [rows[i : i + chunk] for i in range(0, len(rows), chunk)]
+    del rows
     with Pool(workers or os.cpu_count()) as p:
-        res = p.map(normalize_rows, parts)
-    return pl.DataFrame([r for part in res for r in part]).with_columns(pl.col("is_web").cast(pl.Int8))
+        res = p.map(_norm_part, parts)
+    return pl.concat(res).with_columns(pl.col("is_web").cast(pl.Int8))
+
+
+def _norm_part(part):
+    """Worker: normalize one chunk and return it as a compact polars frame (keeps parent memory low)."""
+    return pl.DataFrame(normalize_rows(part))
 
 
 def main():

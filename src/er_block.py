@@ -24,7 +24,7 @@ KEYS = ["k_hs", "k_nj", "k_ns", "k_njh", "k_ih", "k_alt"]
 
 def vectorize(a_text, b_text):
     """Fit sublinear TF-IDF on hashed word 1-2 grams of pool+query text; return L2-normalized float32 CSR matrices."""
-    hv = HashingVectorizer(n_features=2**23, ngram_range=(1, 2), alternate_sign=False, norm=None, dtype=np.float32)
+    hv = HashingVectorizer(n_features=2**23, ngram_range=(1, 2), token_pattern=r"(?u)\S+", lowercase=False, alternate_sign=False, norm=None, dtype=np.float32)
     ha, hb = hv.transform(a_text), hv.transform(b_text)
     tf = TfidfTransformer(sublinear_tf=True).fit(hb)
     return tf.transform(ha).astype(np.float32).tocsr(), tf.transform(hb).astype(np.float32).tocsr()
@@ -126,24 +126,27 @@ def main():
     nd = Path(cfg["cache_dir"]) / "norm"
     s1 = pl.read_parquet(nd / f"{a.split}_s1.parquet").with_row_index("s1_idx")
     pool = pl.read_parquet(nd / f"{a.split}_pool.parquet").with_row_index("pool_idx")
-    parts = []
+    parts, sampled_ids = [], []
     for c in sorted(s1["country_n"].unique().to_list()):
         a1 = s1.filter(pl.col("country_n") == c)
         if a.sample:
             a1 = a1.sample(min(a.sample, len(a1)), seed=42)
         b1 = pool.filter(pl.col("country_n") == c)
+        sampled_ids.append(a1["s1_idx"])
         print(f"{c}: {len(a1):,} S1 x {len(b1):,} pool", flush=True)
         if len(b1):
             parts.append(block_country(a1, b1, a.k, a.cap).with_columns(pl.lit(c).alias("country_n")))
     cand = pl.concat(parts).with_columns(pl.col("s1_idx").cast(pl.UInt32), pl.col("pool_idx").cast(pl.UInt32))
+    sampled = pl.concat(sampled_ids).cast(pl.UInt32).alias("s1_idx").to_frame()
     out = Path(cfg["cache_dir"]) / "cand"
     out.mkdir(parents=True, exist_ok=True)
     name = f"{a.split}_cand{a.tag}.parquet"
     cand.write_parquet(out / name)
+    sampled.write_parquet(out / f"{a.split}_s1{a.tag}.parquet")
     print(f"wrote {name}: {len(cand):,} pairs")
     if a.eval and a.split == "train":
         gt = pl.read_parquet(Path(cfg["cache_dir"]) / "raw" / "train_ground_truth.parquet")
-        s1e = s1.filter(pl.col("s1_idx").is_in(cand["s1_idx"].unique())) if a.sample else s1
+        s1e = s1.join(sampled.with_columns(pl.col("s1_idx").cast(s1["s1_idx"].dtype)), on="s1_idx", how="semi")
         oracle(cand, s1e, pool, gt)
 
 

@@ -27,9 +27,9 @@ def graph_features(c):
     return c.with_columns(
         n_cand=pl.len().over("s1_idx").cast(pl.Float32),
         n_rival=pl.len().over("pool_idx").cast(pl.Float32),
-        word_rank=pl.col("word_sim").rank("ordinal", descending=True).over("s1_idx").cast(pl.Float32),
+        word_rank=pl.col("word_sim").rank("min", descending=True).over("s1_idx").cast(pl.Float32),
         word_gap=(pl.col("word_sim").max().over("s1_idx") - pl.col("word_sim")).cast(pl.Float32),
-        rev_rank=pl.col("word_sim").rank("ordinal", descending=True).over("pool_idx").cast(pl.Float32),
+        rev_rank=pl.col("word_sim").rank("min", descending=True).over("pool_idx").cast(pl.Float32),
         rev_gap=(pl.col("word_sim").max().over("pool_idx") - pl.col("word_sim")).cast(pl.Float32),
         n_keys=pl.sum_horizontal(pl.col("^k_.*$")).cast(pl.Float32),
     )

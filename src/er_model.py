@@ -40,7 +40,7 @@ def decide(pairs, cfg=None):
     """
     d = pairs.select("s1_idx", "pool_idx", "prob").sort(["pool_idx", "prob", "s1_idx"], descending=[False, True, False])
     d = d.unique("pool_idx", keep="first", maintain_order=True)
-    d = d.sort(["s1_idx", "prob"], descending=[False, True]).with_columns(
+    d = d.sort(["s1_idx", "prob", "pool_idx"], descending=[False, True, False]).with_columns(
         k=pl.int_range(1, pl.len() + 1).over("s1_idx"),
         cum=pl.col("prob").cum_sum().over("s1_idx"),
         et=pl.col("prob").sum().over("s1_idx"),
@@ -80,7 +80,10 @@ def folds(cfg, s1, gold, n=5, seed=42):
     """Stratified folds over S1 entities by country x match count (0,1,2,3,4+); cached in data/folds.parquet."""
     path = Path(cfg["data_dir"]) / "folds.parquet"
     if path.exists():
-        return pl.read_parquet(path)
+        f = pl.read_parquet(path)
+        if len(f) == len(s1) and f["entity_id"].equals(s1.sort("s1_idx")["entity_id"]):
+            return f
+        print("folds.parquet does not match the current S1 table: rebuilding", flush=True)
     from sklearn.model_selection import StratifiedKFold
 
     cnt = s1.join(gold.group_by("s1_idx").len(), on="s1_idx", how="left").fill_null(0)
