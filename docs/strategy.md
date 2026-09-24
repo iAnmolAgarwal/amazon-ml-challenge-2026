@@ -27,9 +27,20 @@ Source: plan v1 (docs/review_prompt.md), external review (docs/review_astra6.md)
 - Per-entity scores saved; acceptance on paired per-fold differences (mean and std of candidate - parent), replacing the ">1 std of fold means" rule in CLAUDE.md.
 - CV also reported re-weighted to test country shares (US 0.38 / India 0.47, France unknown).
 
-## Compute
-- Mac: development, CV on subsampled entities, bounded batches.
-- Kaggle CPU (30 GB): full training + test inference, set up on day 1. Pair scoring in batches keeping only (s1, cand, prob); assignment in a separate global pass by pool id.
+## Compute (v3, audited 2026-09-25; docs/review_astra6_compute.md + independent audit)
+Measured on the Mac (8 threads, 2M-row same-country pool slices, 20k S1 per country):
+- Search cost grows faster than linearly with pool size in one call (name 3-grams: 1629 -> 600 -> 388 queries/s per 1M pool rows at 0.5M / 1M / 2M). **Split the pool into 125-250k-row chunks and merge with `zip_sp_matmul_topn`**: linear scaling, 3-5x faster.
+- The **name+address word 1-2 gram view is primary**: best recall and fastest (US recall 0.962, 5200 q/s per 1M rows; India 0.923, 1360). Name char 3-grams are weakest (US 0.719, India 0.584). Address char 3-grams: US 0.901, India slowest (407) because Indic scripts create 53-65 non-zeros per row.
+- Keys + word view: oracle F0.5 0.991 US / 0.977 India on the slice, 23 / 37 candidates per S1. Adding the other two views adds only about 0.003-0.006. At full country pools expect about 0.01 lower (recall drops about 0.01 per pool doubling).
+- Raising word top-k from 20 to 40 costs almost nothing (4.0 s vs 3.8 s) and gives about the same recall as adding a second view. Pruning vectors to the top-8 to top-12 grams loses 0.02-0.08 recall: rejected.
+- sparse_dot_topn is Apache-2.0 and has no Linux arm64 wheel: stay on x86.
+
+Plan:
+1. Mac: chunked retrieval code, word view primary (top-30/40).
+2. EC2-A, on-demand r7a.2xlarge (8 physical cores, 64 GB, x86): check chunk size and oracle (go: at least 0.985 US / 0.97 India on 20k S1 against full train pools); keys + word for all test S1 and all train S1 (about 1-1.5 h, estimated); features, LightGBM, decision pass, CV; **submission 1 at about 4-5 h**. Then development and cached submission builds (20-35 min).
+3. EC2-B, spot r7a.2xlarge: name 3-gram and address 3-gram views for train and test, sharded and checkpointed (about 12 Mac-hours). Adopted only if full-pool oracle and CV show a significant paired gain. Release when done.
+4. Mac: editing, agents, orchestration only. Kaggle not needed.
+5. Data and code move over SSH (rsync); no AWS credentials on the instances. Both instances shut down automatically at 2026-09-27 18:30 UTC (deadline). Cost estimate about $40-60.
 
 ## Submissions
 - Each upload has a written purpose in its log notes (e.g. baseline format + CV/LB link; retrieval coverage; decision rule; Indic view).
