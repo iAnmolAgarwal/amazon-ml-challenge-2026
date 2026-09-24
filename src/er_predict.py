@@ -47,8 +47,16 @@ def main():
     t0 = time.time()
     s1 = M.load_s1(cfg, "train")
     gold = M.load_gold(cfg, s1)
-    ftr = pl.read_parquet(cache / "feat" / f"train_feat{a.tag}.parquet")
-    cols = M.feature_cols(ftr, getattr(mod, "FEATURES", None))
+    extras = getattr(mod, "EXTRA_FEATS", [])
+
+    def load_feat(split):
+        f = pl.read_parquet(cache / "feat" / f"{split}_feat{a.tag}.parquet")
+        for extra in extras:
+            f = f.join(pl.read_parquet(cache / "feat" / f"{split}_{extra}{a.tag}.parquet"), on=["s1_idx", "pool_idx"], how="left")
+        return f
+
+    ftr = load_feat("train")
+    cols = [c for c in M.feature_cols(ftr, getattr(mod, "FEATURES", None)) if c not in getattr(mod, "EXCLUDE", [])]
     rng = np.random.default_rng(cfg["seed"])
     ents = ftr["s1_idx"].unique().to_numpy()
     keep = rng.choice(ents, size=int(len(ents) * a.train_frac), replace=False)
@@ -57,7 +65,7 @@ def main():
     model = get("fit")(tr.select(cols).to_numpy(), tr["y"].to_numpy(), cfg)
     print(f"trained on {len(tr):,} pairs ({int(tr['y'].sum()):,} pos) from {len(keep):,} entities in {time.time() - t0:.0f}s", flush=True)
     del tr
-    fte = pl.read_parquet(cache / "feat" / f"test_feat{a.tag}.parquet")
+    fte = load_feat("test")
     pairs = fte.select("s1_idx", "pool_idx").with_columns(prob=pl.Series(get("predict")(model, fte.select(cols).to_numpy())))
     del fte
     pred = get("decide")(pairs, cfg)

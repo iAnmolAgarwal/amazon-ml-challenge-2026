@@ -41,8 +41,10 @@ def main():
     side = Path(cfg["cache_dir"]) / "cand" / f"train_s1{a.tag}.parquet"
     ents = s1.join(pl.read_parquet(side), on="s1_idx", how="semi") if side.exists() else s1
     ents = ents.join(fo.select("s1_idx", "fold"), on="s1_idx")
+    for extra in getattr(mod, "EXTRA_FEATS", []):
+        feat = feat.join(pl.read_parquet(Path(cfg["cache_dir"]) / "feat" / f"train_{extra}{a.tag}.parquet"), on=["s1_idx", "pool_idx"], how="left")
     feat = feat.join(fo.select("s1_idx", "fold"), on="s1_idx").join(gold.with_columns(y=pl.lit(1, pl.Int8)), on=["s1_idx", "pool_idx"], how="left").with_columns(pl.col("y").fill_null(0))
-    cols = M.feature_cols(feat, getattr(mod, "FEATURES", None))
+    cols = [c for c in M.feature_cols(feat, getattr(mod, "FEATURES", None)) if c not in getattr(mod, "EXCLUDE", [])]
     frac = a.train_frac or get("TRAIN_FRAC")
     fold_ids = [int(x) for x in a.folds.split(",")] if a.folds else sorted(fo["fold"].unique().to_list())
     print(f"{len(feat):,} pairs, {len(ents):,} entities, {len(cols)} features, train_frac {frac}", flush=True)
@@ -60,6 +62,9 @@ def main():
         print(f"fold {f}: trained on {len(tr):,} pairs ({int(tr['y'].sum()):,} pos) in {time.time() - t:.0f}s", flush=True)
         del tr, model
     pairs = feat.select("s1_idx", "pool_idx").with_columns(prob=pl.Series(prob))
+    oof_dir = Path(cfg["cache_dir"]) / "oof"
+    oof_dir.mkdir(exist_ok=True)
+    pairs.write_parquet(oof_dir / f"{a.attempt_id}{a.tag}.parquet")
     pred = get("decide")(pairs, cfg)
     ent = M.per_entity_f05(pred.select("s1_idx", "pool_idx"), gold.filter(pl.col("s1_idx").is_in(ents["s1_idx"].implode())), ents.select("s1_idx", "fold", "country_n"))
     cs = feat.filter(pl.col("y") == 1).group_by("s1_idx").len().rename({"len": "c"})
