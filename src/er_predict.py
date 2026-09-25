@@ -81,6 +81,8 @@ def main():
     del fte
     prob = M.predict_chunked(model, Xt, np.arange(len(keys))) if not hasattr(mod, "predict") else get("predict")(model, Xt)
     pairs = keys.with_columns(prob=pl.Series(prob))
+    (cache / "oof").mkdir(exist_ok=True)
+    pairs.write_parquet(cache / "oof" / f"test_{a.attempt_id}{a.tag}.parquet")
     del Xt
     pred = get("decide")(pairs, cfg, floor=get("FLOOR"))
     ts1 = pl.read_parquet(cache / "norm" / "test_s1.parquet", columns=["entity_id"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32))
