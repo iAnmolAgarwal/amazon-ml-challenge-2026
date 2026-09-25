@@ -14,4 +14,4 @@
 No significant paired gain over 005n.
 
 ## Result
-(fill after er_eval)
+CV 0.97083; test-weighted 0.97018; India 0.9683, US 0.9726; pair P 0.9924 R 0.9321. Paired vs 005n: +0.00076, SE 0.00002, 5/5 -> significant (vs 004b +0.00733).

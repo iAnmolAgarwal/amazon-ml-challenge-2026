@@ -17,4 +17,4 @@ Dictionary: India +0.004-0.008 test-weighted. Guard before upload: test house-co
 No significant paired gain over 003.
 
 ## Result
-(fill after er_eval)
+CV 0.97008 +/- (see results.json); test-weighted 0.96939; India 0.9674 (oracle 0.9815 -> 0.9918), US 0.9719. Paired vs 003: +0.00899, SE 0.00008, 5/5 -> significant.
