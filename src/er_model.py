@@ -26,7 +26,11 @@ def feature_cols(df, wanted=None):
 
 
 def to_matrix(df, cols):
-    """Build a C-contiguous float32 matrix column by column, dropping each column from df as it goes (bounded peak memory)."""
+    """Build a C-contiguous float32 matrix column by column, dropping each column from df as it goes (bounded peak memory).
+
+    df may be a one-element list holding the only reference to the frame, so dropped columns are actually freed."""
+    if isinstance(df, list):
+        df = df.pop()
     X = np.empty((len(df), len(cols)), dtype=np.float32)
     for j, c in enumerate(cols):
         X[:, j] = df[c].cast(pl.Float32).to_numpy()

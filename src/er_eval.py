@@ -37,8 +37,9 @@ def train_oof(a, cfg, mod, get, gold, fo, ents, t_all):
     fold_col = feat["fold"].to_numpy()
     s1col = feat["s1_idx"].to_numpy()
     cs = feat.filter(pl.col("y") == 1).group_by("s1_idx").len().rename({"len": "c"})
-    X = M.to_matrix(feat.select(cols), cols)
+    holder = [feat.select(cols)]
     del feat
+    X = M.to_matrix(holder, cols)
     custom = hasattr(mod, "fit")
     full = None if custom else M.full_dataset(X, yv, get("PARAMS"))
     print(f"matrix {X.shape} ready in {time.time() - t_all:.0f}s", flush=True)

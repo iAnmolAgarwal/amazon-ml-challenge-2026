@@ -60,15 +60,17 @@ def train_and_score(a, cfg, mod, get, cache, frac, t0):
     del ftr
     tr = tr.join(gold.with_columns(y=pl.lit(1, pl.Int8)), on=["s1_idx", "pool_idx"], how="left", maintain_order="left").with_columns(pl.col("y").fill_null(0))
     yv = tr["y"].to_numpy()
-    X = M.to_matrix(tr.select(cols), cols)
+    holder = [tr.select(cols)]
     del tr
+    X = M.to_matrix(holder, cols)
     model = get("fit")(X, yv, cfg) if hasattr(mod, "fit") else M.fit(X, yv, cfg, get("PARAMS"), get("ROUNDS"))
     print(f"trained on {len(yv):,} pairs ({int(yv.sum()):,} pos) from {len(keep):,} entities in {time.time() - t0:.0f}s", flush=True)
     del X
     fte = load_feat("test")
     keys = fte.select("s1_idx", "pool_idx")
-    Xt = M.to_matrix(fte.select(cols), cols)
+    holder = [fte.select(cols)]
     del fte
+    Xt = M.to_matrix(holder, cols)
     prob = M.predict_chunked(model, Xt, np.arange(len(keys))) if not hasattr(mod, "predict") else get("predict")(model, Xt)
     pairs = keys.with_columns(prob=pl.Series(prob))
     (cache / "oof").mkdir(exist_ok=True)
