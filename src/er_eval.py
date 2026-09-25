@@ -48,26 +48,35 @@ def main():
     frac = a.train_frac or get("TRAIN_FRAC")
     fold_ids = [int(x) for x in a.folds.split(",")] if a.folds else sorted(fo["fold"].unique().to_list())
     print(f"{len(feat):,} pairs, {len(ents):,} entities, {len(cols)} features, train_frac {frac}", flush=True)
-    prob = np.full(len(feat), np.nan, dtype=np.float32)
+    keys = feat.select("s1_idx", "pool_idx")
+    yv = feat["y"].to_numpy()
     fold_col = feat["fold"].to_numpy()
+    s1col = feat["s1_idx"].to_numpy()
+    cs = feat.filter(pl.col("y") == 1).group_by("s1_idx").len().rename({"len": "c"})
+    X = M.to_matrix(feat.select(cols), cols)
+    del feat
+    custom = hasattr(mod, "fit")
+    full = None if custom else M.full_dataset(X, yv, get("PARAMS"))
+    print(f"matrix {X.shape} ready in {time.time() - t_all:.0f}s", flush=True)
+    prob = np.full(len(yv), np.nan, dtype=np.float32)
     rng = np.random.default_rng(cfg["seed"])
     for f in sorted(fo["fold"].unique().to_list()):
         t = time.time()
         tr_ents = ents.filter(pl.col("fold") != f)["s1_idx"].to_numpy()
         tr_ents = rng.choice(tr_ents, size=max(1, int(len(tr_ents) * frac)), replace=False)
-        tr = feat.filter(pl.col("s1_idx").is_in(tr_ents) & (pl.col("fold") != f))
-        model = get("fit")(tr.select(cols).to_numpy(), tr["y"].to_numpy(), cfg)
-        m = fold_col == f
-        prob[m] = get("predict")(model, feat.filter(pl.Series(m)).select(cols).to_numpy())
-        print(f"fold {f}: trained on {len(tr):,} pairs ({int(tr['y'].sum()):,} pos) in {time.time() - t:.0f}s", flush=True)
-        del tr, model
-    pairs = feat.select("s1_idx", "pool_idx").with_columns(prob=pl.Series(prob))
+        tr_idx = np.flatnonzero(np.isin(s1col, tr_ents) & (fold_col != f))
+        model = get("fit")(X[tr_idx], yv[tr_idx], cfg) if custom else M.fit_subset(full, tr_idx, get("PARAMS"), get("ROUNDS"))
+        va = np.flatnonzero(fold_col == f)
+        prob[va] = get("predict")(model, X[va]) if hasattr(mod, "predict") else M.predict_chunked(model, X, va)
+        print(f"fold {f}: trained on {len(tr_idx):,} pairs ({int(yv[tr_idx].sum()):,} pos) in {time.time() - t:.0f}s", flush=True)
+        del model
+    del X, full
+    pairs = keys.with_columns(prob=pl.Series(prob))
     oof_dir = Path(cfg["cache_dir"]) / "oof"
     oof_dir.mkdir(exist_ok=True)
     pairs.write_parquet(oof_dir / f"{a.attempt_id}{a.tag}.parquet")
     pred = get("decide")(pairs, cfg)
     ent = M.per_entity_f05(pred.select("s1_idx", "pool_idx"), gold.filter(pl.col("s1_idx").is_in(ents["s1_idx"].implode())), ents.select("s1_idx", "fold", "country_n"))
-    cs = feat.filter(pl.col("y") == 1).group_by("s1_idx").len().rename({"len": "c"})
     ent = ent.join(cs, on="s1_idx", how="left").fill_null(0).with_columns(
         oracle=pl.when(pl.col("t") == 0).then(1.0).otherwise(1.25 * pl.col("c") / (0.25 * pl.col("t") + pl.col("c")).clip(1e-9))
     )
@@ -81,7 +90,7 @@ def main():
         "attempt_id": a.attempt_id, "metric": "f05_er", "higher_is_better": True, "folds": fold_ids,
         "fold_scores": scores, "mean": float(np.mean(scores)), "std": float(np.std(scores, ddof=1)) if len(scores) > 1 else 0.0,
         "test_weighted": tw, "oracle": float(ent["oracle"].mean()), "pair_precision": float(tp / max(k, 1)), "pair_recall": float(tp / max(t_, 1)),
-        "by_country": by_c.to_dicts(), "by_true_matches": by_t.to_dicts(), "n_entities": len(ent), "n_pairs": len(feat),
+        "by_country": by_c.to_dicts(), "by_true_matches": by_t.to_dicts(), "n_entities": len(ent), "n_pairs": len(keys),
         "tag": a.tag, "train_frac": frac, "features": cols, "runtime_s": time.time() - t_all, "git_commit": git_commit(),
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"), "n_rows": len(ent),
     }

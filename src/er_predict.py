@@ -60,14 +60,22 @@ def main():
     rng = np.random.default_rng(cfg["seed"])
     ents = ftr["s1_idx"].unique().to_numpy()
     keep = rng.choice(ents, size=int(len(ents) * a.train_frac), replace=False)
-    tr = ftr.filter(pl.col("s1_idx").is_in(keep)).join(gold.with_columns(y=pl.lit(1, pl.Int8)), on=["s1_idx", "pool_idx"], how="left").with_columns(pl.col("y").fill_null(0))
+    tr = ftr.filter(pl.col("s1_idx").is_in(keep)) if a.train_frac < 1 else ftr
     del ftr
-    model = get("fit")(tr.select(cols).to_numpy(), tr["y"].to_numpy(), cfg)
-    print(f"trained on {len(tr):,} pairs ({int(tr['y'].sum()):,} pos) from {len(keep):,} entities in {time.time() - t0:.0f}s", flush=True)
+    tr = tr.join(gold.with_columns(y=pl.lit(1, pl.Int8)), on=["s1_idx", "pool_idx"], how="left").with_columns(pl.col("y").fill_null(0))
+    yv = tr["y"].to_numpy()
+    X = M.to_matrix(tr.select(cols), cols)
     del tr
+    model = get("fit")(X, yv, cfg)
+    print(f"trained on {len(yv):,} pairs ({int(yv.sum()):,} pos) from {len(keep):,} entities in {time.time() - t0:.0f}s", flush=True)
+    del X
     fte = load_feat("test")
-    pairs = fte.select("s1_idx", "pool_idx").with_columns(prob=pl.Series(get("predict")(model, fte.select(cols).to_numpy())))
+    keys = fte.select("s1_idx", "pool_idx")
+    Xt = M.to_matrix(fte.select(cols), cols)
     del fte
+    prob = M.predict_chunked(model, Xt, np.arange(len(keys))) if not hasattr(mod, "predict") else get("predict")(model, Xt)
+    pairs = keys.with_columns(prob=pl.Series(prob))
+    del Xt
     pred = get("decide")(pairs, cfg)
     ts1 = pl.read_parquet(cache / "norm" / "test_s1.parquet", columns=["entity_id"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32))
     tpool = pl.read_parquet(cache / "norm" / "test_pool.parquet", columns=["entity_id"]).with_row_index("pool_idx").with_columns(pl.col("pool_idx").cast(pl.UInt32))

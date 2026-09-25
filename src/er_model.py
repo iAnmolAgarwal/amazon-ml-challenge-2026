@@ -23,6 +23,31 @@ def feature_cols(df, wanted=None):
     return [c for c in (wanted or cols) if c in cols]
 
 
+def to_matrix(df, cols):
+    """Build a C-contiguous float32 matrix column by column, dropping each column from df as it goes (bounded peak memory)."""
+    X = np.empty((len(df), len(cols)), dtype=np.float32)
+    for j, c in enumerate(cols):
+        X[:, j] = df[c].cast(pl.Float32).to_numpy()
+        df = df.drop(c)
+    return X
+
+
+def full_dataset(X, y, params=None):
+    """Bin all rows once (label-free feature quantiles); folds then train on zero-copy subsets."""
+    return lgb.Dataset(X, y, params=dict(params or PARAMS), free_raw_data=False).construct()
+
+
+def fit_subset(full, idx, params=None, rounds=None):
+    return lgb.train(params or PARAMS, full.subset(np.sort(idx).astype(np.int32)), rounds or ROUNDS)
+
+
+def predict_chunked(model, X, idx, chunk=4_000_000):
+    out = np.empty(len(idx), dtype=np.float32)
+    for s in range(0, len(idx), chunk):
+        out[s : s + chunk] = model.predict(X[idx[s : s + chunk]], num_threads=8)
+    return out
+
+
 def fit(X, y, cfg, params=None, rounds=None):
     return lgb.train(params or PARAMS, lgb.Dataset(X, y, free_raw_data=True), rounds or ROUNDS)
 
