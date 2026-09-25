@@ -1,6 +1,6 @@
 # Live status / handoff (update at every milestone)
 
-Last update: 2026-09-25 ~07:55 IST
+Last update: 2026-09-25 ~08:10 IST (003 CV relaunched with memory-lean harness at ~07:58; matrix built in 125 s)
 
 ## Scores
 | # | attempt | CV macro F0.5 | public LB | notes |
@@ -11,7 +11,7 @@ Budget: 2/5 used on 25 Sep IST, 13/15 left. Log: submissions/log.csv, `python sr
 
 ## Running now
 - EC2-A (on-demand r7a.2xlarge i-038c4d2ef3e919514, alias amlc-a): CV of 003_trainfrac50 (002 trained on 50%) with the NEW memory-lean harness. Log ~/eval_003.log, marker ~/EVAL003_DONE. The first 003 run was OOM-killed at 07:36 IST (old harness 42 GB + a concurrent job). RULE: only one heavy job on EC2-A at a time.
-- EC2-B (spot r7a.2xlarge, id in scratchpad b-id, alias amlc-b): receiving train/test feat + feat2 via scripts/s3_relay.sh (from A). Next on B: `python src/er_feat3.py --split train` then `--split test` (coherence features), then relay train_feat3/test_feat3 back to A.
+- EC2-B (spot r7a.2xlarge, id in scratchpad b-id, alias amlc-b): building coherence features: `er_feat3.py --split train` (log ~/feat3_train.log, marker ~/TRAIN_FEAT3_DONE) then `--split test` (~/feat3_test.log, ~/TEST_FEAT3_DONE). When both markers exist: `scripts/s3_relay.sh amlc-b cache/feat/train_feat3.parquet amlc-a` and the same for test_feat3. If B is reclaimed: rerun the same two commands on A (A has all inputs) after A's current job.
 
 ## Next steps (approved by user)
 1. 003 CV -> if significant paired gain over 002: `er_predict.py 003_trainfrac50 --train-frac 0.5` on A -> validate on A (`python3 validate_submission.py ... --test-dir valtest --check-ids`) -> copy TSV to Mac (checksum) -> `python src/er_package.py submissions/03_...tsv --skip-validate` -> cp to submissions/matching_results.tsv -> user uploads (sub-03).
