@@ -3,10 +3,12 @@
 Each record is turned into several side-by-side views (never one destructive string):
 core name, website-free name, space-free keys (original and sorted token order), initials,
 alternate name ("formerly"/DBA), normalized address, house number, postal code and a
-combined text used by the word-view retrieval. Indic scripts are preserved; only Latin
-diacritics are folded. Run as a script to build cache/norm/{split}_{s1,pool}.parquet.
+combined text used by the word-view retrieval. Native-script tokens learned by er_dict.py are
+replaced by their Latin form first (name_lat keeps the latinized raw name); other Indic text is
+preserved and only Latin diacritics are folded. Run as a script to build cache/norm/{split}_{s1,pool}.parquet.
 """
 import argparse
+import json
 import os
 import re
 import unicodedata
@@ -44,6 +46,29 @@ FR_POSTREF = re.compile(r"\b(?:bp|cs|tsa|cedex)\s*\d+\b", re.I)
 SUBUNIT = re.compile(r"\b(?:suite|ste|apt|apartment|unit|room|rm|fl|floor|po box|p\.?o\.? box|box)\.?\s*#?\s*\d+[a-z]?\b", re.I)
 NUM = re.compile(r"\d+")
 EMPTY = {"", "none", "null", "nan", "na", "n/a", "-"}
+IND_RUN = re.compile(r"[\u0900-\u0963\u0966-\u0DFF\u200c\u200d]+")
+LAT_RUN = re.compile(r"[0-9a-z\u00df-\u024f]+", re.I)
+_MAPS = None
+
+
+def indic_maps():
+    """Token maps learned by er_dict.py from training gold pairs (empty maps if not built)."""
+    global _MAPS
+    if _MAPS is None:
+        p = Path(load_config()["cache_dir"]) / "dict" / "indic.json"
+        _MAPS = json.loads(p.read_text()) if p.exists() else {"name": {}, "addr": {}, "canon": {}}
+    return _MAPS
+
+
+def latinize(s, field, india):
+    """Replace learned native-script tokens by their Latin form; on India names also map Latin spelling variants to one canon."""
+    m = indic_maps()
+    s = s or ""
+    if m[field] and IND_RUN.search(s):
+        s = IND_RUN.sub(lambda x: m[field].get(x.group(0).replace("\u200c", "").replace("\u200d", ""), x.group(0)), s)
+    if india and field == "name" and m["canon"]:
+        s = LAT_RUN.sub(lambda x: m["canon"].get(x.group(0).lower(), x.group(0)), s)
+    return s
 
 
 def fold(s):
@@ -163,6 +188,8 @@ def normalize_rows(rows):
     stop = {"no", "number", "h", "hno", "house", "door", "plot", "flat", "shop", "unit", "survey", "kh", "khasra", "suite", "apartment", "floor", "d", "sy"}
     for eid, name, addr, country in rows:
         france = fold(country).strip() == "france"
+        india = fold(country).strip() == "india"
+        name, addr = latinize(name, "name", india), latinize(addr, "addr", india)
         core, alt, is_web = name_views(name, france)
         atoks, house, postal, nums, house_tok = addr_views(addr, france)
         skip = stop | FR_SKIP if france else stop
@@ -172,6 +199,7 @@ def normalize_rows(rows):
         out.append({
             "entity_id": eid,
             "country_n": fold(country).strip(),
+            "name_lat": name,
             "name_core": " ".join(core),
             "name_alt": " ".join(alt),
             "name_join": join_key(core),

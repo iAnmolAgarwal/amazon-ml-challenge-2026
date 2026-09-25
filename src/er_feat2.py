@@ -52,10 +52,10 @@ def build(split, tag, batch=5_000_000):
     pool = pool.join(counts, on=["country_n", "name_join"], how="left").select(
         pl.col("pool_idx").cast(pl.UInt32), pl.col("addr_norm").alias("addr_p"), pl.col("n_s1").log1p().cast(pl.Float32).alias("nf_p_s1"), pl.col("n_pool").log1p().cast(pl.Float32).alias("nf_p_pool")
     ).sort("pool_idx")
-    raw1 = pl.read_parquet(cache / "raw" / f"{split}_source1.parquet", columns=["business_name"])
-    rawp = pl.concat([pl.read_parquet(cache / "raw" / f"{split}_source{i}.parquet", columns=["business_name"]) for i in (2, 3)])
-    s1 = s1.with_columns(cname=pl.Series([conservative(x) for x in raw1["business_name"].to_list()]))
-    pool = pool.with_columns(cname_p=pl.Series([conservative(x) for x in rawp["business_name"].to_list()]))
+    raw1 = pl.read_parquet(cache / "norm" / f"{split}_s1.parquet", columns=["name_lat"])
+    rawp = pl.read_parquet(cache / "norm" / f"{split}_pool.parquet", columns=["name_lat"])
+    s1 = s1.with_columns(cname=pl.Series([conservative(x) for x in raw1["name_lat"].to_list()]))
+    pool = pool.with_columns(cname_p=pl.Series([conservative(x) for x in rawp["name_lat"].to_list()]))
     del raw1, rawp
     print(f"lookups ready in {time.time() - t:.0f}s", flush=True)
     cand = pl.read_parquet(cache / "cand" / f"{split}_cand{tag}.parquet", columns=["s1_idx", "pool_idx"])

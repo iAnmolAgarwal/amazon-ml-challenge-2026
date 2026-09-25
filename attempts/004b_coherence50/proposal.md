@@ -17,4 +17,4 @@ Gate 5 audit: coherence +0.0025-0.003 on sample; 003 vs 002 (training fraction 2
 No significant paired gain over 003.
 
 ## Result
-(fill after er_eval)
+CV 0.96351 +/- 0.00010 (test-weighted 0.95947; India 0.9476, US 0.9741). Paired vs 003: +0.00242, SE 0.00006, 5/5 -> significant. Clears 004 (same features, 100% training) for submission 4.

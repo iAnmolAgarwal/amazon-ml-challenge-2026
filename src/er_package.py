@@ -51,6 +51,7 @@ Place the organisers' `dataset/` folder (train/ and test/ TSVs) under `data/` (a
 ## Reproduce end to end
 ```
 python src/prepare_raw.py                         # TSV -> parquet (cache/raw)
+python src/er_dict.py                             # native-script -> Latin token maps learned from training pairs
 python src/er_norm.py --split train               # normalization views
 python src/er_norm.py --split test
 python src/er_block.py --split train              # candidate generation (blocking)
@@ -87,7 +88,7 @@ for split in ("train", "test"):
 
 DOC = ROOT / "docs" / "Documentation_template.md"
 PLACEHOLDERS = ("[Your Team Name]", "[List all team members]", "[Date]", "[e.g.,", "[total]", "[]", "[brief description]", "[your best validation score]", "[Brief description", "[Blocking + Classifier", "*Provide a brief", "*Describe how", "*Key insights", "*Outline your", "*Summarize your", "*Include any", "*Your complete")
-SRC_FILES = ["common.py", "er.py", "er_norm.py", "er_block.py", "er_feat.py", "er_feat2.py", "er_feat3.py", "er_model.py", "er_eval.py", "er_predict.py", "er_package.py"]
+SRC_FILES = ["common.py", "er.py", "er_dict.py", "er_norm.py", "er_block.py", "er_feat.py", "er_feat2.py", "er_feat3.py", "er_model.py", "er_eval.py", "er_predict.py", "er_package.py"]
 
 
 def validate(mt, ct, cfg, test_dir):

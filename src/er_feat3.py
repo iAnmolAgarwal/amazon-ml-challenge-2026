@@ -33,13 +33,12 @@ K_ANCHOR = 3
 
 def pool_table(cache, split):
     """Per pool record: conservative name, normalized address, house, postal, source flag."""
-    n = pl.read_parquet(cache / "norm" / f"{split}_pool.parquet", columns=["entity_id", "addr_norm", "house", "postal"]).with_row_index("pool_idx")
-    raw = pl.concat([pl.read_parquet(cache / "raw" / f"{split}_source{i}.parquet", columns=["business_name"]) for i in (2, 3)])
+    n = pl.read_parquet(cache / "norm" / f"{split}_pool.parquet", columns=["entity_id", "name_lat", "addr_norm", "house", "postal"]).with_row_index("pool_idx")
     return n.with_columns(
         pl.col("pool_idx").cast(pl.UInt32),
-        cname=pl.Series([conservative(x) for x in raw["business_name"].to_list()]),
+        cname=pl.Series([conservative(x) for x in n["name_lat"].to_list()]),
         s3=(pl.col("entity_id").str.slice(0, 3) == "S3-").cast(pl.Int8),
-    ).drop("entity_id")
+    ).drop("entity_id", "name_lat")
 
 
 def anchors(cand):
