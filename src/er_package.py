@@ -62,7 +62,7 @@ python src/er_feat2.py --split train              # side-car features (name freq
 python src/er_feat2.py --split test
 python src/er_feat3.py --split train              # side-car coherence features (agreement with each S1's anchor candidates)
 python src/er_feat3.py --split test
-python src/er_eval.py {attempt}                   # optional: 5-fold CV, macro F0.5
+{pre}python src/er_eval.py {attempt}                   # optional: 5-fold CV, macro F0.5
 python src/er_predict.py {attempt} --train-frac {frac}  # train on train, write submissions/NN_{attempt}.tsv (+ .candidates.tsv)
 ```
 `matching_results.tsv` = submissions/NN_{attempt}.tsv; `candidate_pairs.tsv` = submissions/NN_{attempt}.candidates.tsv.
@@ -149,10 +149,13 @@ def main():
             zf.write(ROOT / "src" / f, base + "src/" + f)
         zf.writestr(base + "src/prepare_raw.py", PREP)
         zf.write(ROOT / "config.yaml", base + "config.yaml")
-        for f in (ROOT / "attempts" / attempt).glob("*"):
-            if f.suffix in (".py", ".json") and not f.name.startswith("diag"):
-                zf.write(f, base + f"attempts/{attempt}/{f.name}")
-        zf.writestr(base + "README.md", README.format(attempt=attempt, frac=man.get("train_frac", getattr(load_attempt(attempt), "TRAIN_FRAC", M.TRAIN_FRAC))))
+        mod = load_attempt(attempt)
+        for dep in [attempt] + list(getattr(mod, "DEPENDS", [])):
+            for f in (ROOT / "attempts" / dep).glob("*"):
+                if f.suffix in (".py", ".json") and not f.name.startswith("diag"):
+                    zf.write(f, base + f"attempts/{dep}/{f.name}")
+        pre = "".join(f"{c}\n" for c in getattr(mod, "PRE_STEPS", []))
+        zf.writestr(base + "README.md", README.format(attempt=attempt, pre=pre, frac=man.get("train_frac", getattr(mod, "TRAIN_FRAC", M.TRAIN_FRAC))))
         zf.writestr(base + "requirements.txt", REQUIREMENTS)
         if a.final:
             zf.write(mt, "output/matching_results.tsv")
