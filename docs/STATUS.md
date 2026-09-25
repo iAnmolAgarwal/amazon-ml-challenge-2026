@@ -1,0 +1,26 @@
+# Live status / handoff (update at every milestone)
+
+Last update: 2026-09-25 ~07:55 IST
+
+## Scores
+| # | attempt | CV macro F0.5 | public LB | notes |
+|---|---|---|---|---|
+| sub-01 | 001_baseline (41 feats, train 20%) | 0.94292 +/- 0.00029 | 0.929 | commit 125b680; test norm without France fixes |
+| sub-02 | 002_namefreq (+feat2: name freq, conservative names, gated addr) | 0.96050 +/- 0.00021 | 0.949 | France-gated test normalization; implied France ~0.907 |
+Budget: 2/5 used on 25 Sep IST, 13/15 left. Log: submissions/log.csv, `python src/sub_status.py`.
+
+## Running now
+- EC2-A (on-demand r7a.2xlarge i-038c4d2ef3e919514, alias amlc-a): CV of 003_trainfrac50 (002 trained on 50%) with the NEW memory-lean harness. Log ~/eval_003.log, marker ~/EVAL003_DONE. The first 003 run was OOM-killed at 07:36 IST (old harness 42 GB + a concurrent job). RULE: only one heavy job on EC2-A at a time.
+- EC2-B (spot r7a.2xlarge, id in scratchpad b-id, alias amlc-b): receiving train/test feat + feat2 via scripts/s3_relay.sh (from A). Next on B: `python src/er_feat3.py --split train` then `--split test` (coherence features), then relay train_feat3/test_feat3 back to A.
+
+## Next steps (approved by user)
+1. 003 CV -> if significant paired gain over 002: `er_predict.py 003_trainfrac50 --train-frac 0.5` on A -> validate on A (`python3 validate_submission.py ... --test-dir valtest --check-ids`) -> copy TSV to Mac (checksum) -> `python src/er_package.py submissions/03_...tsv --skip-validate` -> cp to submissions/matching_results.tsv -> user uploads (sub-03).
+2. 004 = 002 + feat3 (coherence) + TRAIN_FRAC 1.0 (+ optional per-country isotonic): create attempts/004_*, EXTRA_FEATS=["feat2","feat3"], EXCLUDE a_ratio/a_partial. CV on A (new harness, ~2 h at 100%), then predict with --train-frac 1.0 -> sub-04. Expected +0.004-0.005 CV over 002.
+3. Then India word top-80 (P1), per-country isotonic (+0.00015).
+4. Workers W1/W2 can be started from RUNBOOK once 004 is in flight.
+
+## Key facts
+- Gate 5 audit (docs/astra/05_*): coherence +0.0025-0.003 (sample, 3 seeds); learning curve 10%->20% +0.00071, 20%->40% +0.00088 (India +0.0014); calibration +0.0001-0.00015; Hungarian/ownership rejected; loss split All: retrieval .0102 / ownership .0046 / selection .0136 / FP .0112; singletons = 46% of FP damage.
+- Harness: src/er_norm, er_block, er_feat, er_feat2 (side-car), er_feat3 (coherence side-car), er_model (to_matrix, full_dataset, fit_subset, predict_chunked, decide), er_eval (OOF CV, saves cache/oof/<id>.parquet), er_predict, er_package (code zip, no AI mentions, no notes), er_diag.
+- User rules: every AWS change shown + approved (user pre-approved compute up to $100 total); no AI mentions in code zips; leaderboard never changes process; Astra 6 review at each gate + independent Opus audit; caffeinate until 26 Sep 07:45 IST.
+- Quota requests pending: Standard on-demand 32 vCPU, Standard spot 32 vCPU.
