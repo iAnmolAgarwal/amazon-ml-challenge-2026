@@ -78,7 +78,7 @@ for split in ("train", "test"):
         print(f)
 '''
 
-SRC_FILES = ["common.py", "er.py", "er_norm.py", "er_block.py", "er_feat.py", "er_model.py", "er_eval.py", "er_predict.py", "er_package.py"]
+SRC_FILES = ["common.py", "er.py", "er_norm.py", "er_block.py", "er_feat.py", "er_feat2.py", "er_model.py", "er_eval.py", "er_predict.py", "er_package.py"]
 
 
 def validate(mt, ct, cfg):
@@ -114,7 +114,7 @@ def main():
         zf.writestr(base + "src/prepare_raw.py", PREP)
         zf.write(ROOT / "config.yaml", base + "config.yaml")
         for f in (ROOT / "attempts" / attempt).glob("*"):
-            if f.suffix in (".py", ".md", ".json"):
+            if f.suffix in (".py", ".json") and not f.name.startswith("diag"):
                 zf.write(f, base + f"attempts/{attempt}/{f.name}")
         zf.writestr(base + "README.md", README.format(attempt=attempt))
         zf.writestr(base + "requirements.txt", REQUIREMENTS)
