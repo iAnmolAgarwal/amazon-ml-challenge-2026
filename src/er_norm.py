@@ -145,6 +145,12 @@ def name_views(raw, france=False):
     return core(s), core(alt) if alt else [], is_web
 
 
+def skeleton(s):
+    """Consonant skeleton of a Latin string: first letter kept, later vowels dropped, repeats collapsed (absorbs vowel typos and transliteration variants)."""
+    s = "".join(ch for ch in s if "a" <= ch <= "z")
+    return re.sub(r"(.)\1+", r"\1", s[:1] + "".join(ch for ch in s[1:] if ch not in "aeiouy")) if s else ""
+
+
 def join_key(toks):
     """Space-free name from whole tokens (legal words already removed as tokens); undoes word splits and website gluing."""
     return "".join(toks)
@@ -205,6 +211,8 @@ def normalize_rows(rows):
             "name_join": join_key(core),
             "name_sorted": "".join(sorted(core)),
             "initials": "".join(t[0] for t in core) if len(core) >= 2 else "",
+            "name_skel": skeleton(join_key(core)),
+            "name_fl": f"{core[0]}|{core[-1]}" if len(core) >= 2 else "",
             "is_web": is_web,
             "addr_norm": " ".join(atoks),
             "house": house,

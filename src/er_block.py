@@ -19,7 +19,7 @@ from sparse_dot_topn import sp_matmul_topn, zip_sp_matmul_topn
 
 from common import load_config
 
-KEYS = ["k_hs", "k_nj", "k_ns", "k_njh", "k_ih", "k_alt"]
+KEYS = ["k_hs", "k_nj", "k_ns", "k_njh", "k_ih", "k_alt", "k_sk", "k_skh", "k_fl", "k_rev"]
 
 
 def vectorize(a_text, b_text):
@@ -43,7 +43,7 @@ def topk(qa, pb, k, chunk=125_000, qchunk=200_000, threads=8):
     return np.concatenate(rows), np.concatenate(cols), np.concatenate(vals)
 
 
-def key_pairs(a, b, cap):
+def key_pairs(a, b, cap, use=None):
     """Exact-key candidate pairs; key values with more than `cap` rows on either side are skipped."""
     specs = {
         "k_hs": (pl.concat_str(["house", "street1"], separator="|"), pl.concat_str(["house", "street1"], separator="|"), ["house", "street1"]),
@@ -52,9 +52,13 @@ def key_pairs(a, b, cap):
         "k_njh": (pl.concat_str(["name_join", "house"], separator="|"), pl.concat_str(["name_join", "house"], separator="|"), ["name_join", "house"]),
         "k_ih": (pl.concat_str(["initials", "house"], separator="|"), pl.concat_str(["name_join", "house"], separator="|"), ["initials", "house"]),
         "k_alt": (pl.col("name_join"), pl.col("name_alt").str.replace_all(" ", ""), ["name_join"]),
+        "k_sk": (pl.col("name_skel"), pl.col("name_skel"), ["name_skel"]),
+        "k_skh": (pl.concat_str(["name_skel", "house"], separator="|"), pl.concat_str(["name_skel", "house"], separator="|"), ["name_skel", "house"]),
+        "k_fl": (pl.col("name_fl"), pl.col("name_fl"), ["name_fl"]),
     }
     out = []
-    for k, (ea, eb, need) in specs.items():
+    use = use or KEYS[:6]
+    for k, (ea, eb, need) in ((k, v) for k, v in specs.items() if k in use):
         ka = a.filter(pl.all_horizontal([pl.col(c) != "" for c in need])).select(pl.col("s1_idx"), ea.alias("key"))
         bb = b.filter(pl.col("name_alt") != "") if k == "k_alt" else b
         kb = bb.select(pl.col("pool_idx"), eb.alias("key")).filter(pl.col("key").str.len_chars() >= 3)
@@ -67,7 +71,7 @@ def key_pairs(a, b, cap):
     res = out[0]
     for p in out[1:]:
         res = res.join(p, on=["s1_idx", "pool_idx"], how="full", coalesce=True)
-    return res.with_columns([pl.col(k).fill_null(0) for k in KEYS])
+    return res.with_columns([pl.col(k).fill_null(0) for k in use])
 
 
 def row_cos(qa, pb, r, c, batch=2_000_000):
@@ -78,15 +82,21 @@ def row_cos(qa, pb, r, c, batch=2_000_000):
     return out
 
 
-def block_country(a, b, k, cap):
-    """Candidate pairs for one country."""
+def block_country(a, b, k, cap, rev_k=0, use=None):
+    """Candidate pairs for one country (rev_k > 0 adds each pool record's top-rev_k S1 by word cosine)."""
     t = time.time()
     qa, pb = vectorize(a["text"].to_list(), b["text"].to_list())
     r, c, v = topk(qa, pb, k)
     word = pl.DataFrame({"s1_idx": a["s1_idx"].to_numpy()[r], "pool_idx": b["pool_idx"].to_numpy()[c], "word_sim": v.astype(np.float32)})
     print(f"  word top-{k}: {len(word):,} pairs in {time.time() - t:.0f}s", flush=True)
-    keys = key_pairs(a, b, cap)
-    cand = word.join(keys, on=["s1_idx", "pool_idx"], how="full", coalesce=True).with_columns([pl.col(x).fill_null(0) for x in KEYS])
+    if rev_k:
+        rr, rc, rv = topk(pb, qa, rev_k)
+        rev = pl.DataFrame({"s1_idx": a["s1_idx"].to_numpy()[rc], "pool_idx": b["pool_idx"].to_numpy()[rr], "rev_sim": rv.astype(np.float32)})
+        word = word.join(rev, on=["s1_idx", "pool_idx"], how="full", coalesce=True).with_columns(
+            pl.coalesce("word_sim", "rev_sim").alias("word_sim"), pl.col("rev_sim").is_not_null().cast(pl.UInt8).alias("k_rev")).drop("rev_sim")
+        print(f"  reverse top-{rev_k}: {len(rev):,} pairs, {int((word['k_rev'] == 1).sum()):,} flagged in {time.time() - t:.0f}s", flush=True)
+    keys = key_pairs(a, b, cap, use)
+    cand = word.join(keys, on=["s1_idx", "pool_idx"], how="full", coalesce=True).with_columns([pl.col(x).fill_null(0) for x in KEYS if x in word.columns or x in keys.columns])
     miss = cand.filter(pl.col("word_sim").is_null())
     if len(miss):
         amap = np.full(a["s1_idx"].max() + 1, -1, dtype=np.int64)
@@ -118,6 +128,8 @@ def main():
     ap.add_argument("--split", choices=["train", "test"], required=True)
     ap.add_argument("--k", type=int, default=40)
     ap.add_argument("--cap", type=int, default=50)
+    ap.add_argument("--rev-k", type=int, default=0, help="also add each pool record's top-N S1 (reverse retrieval)")
+    ap.add_argument("--keys", default="k_hs,k_nj,k_ns,k_njh,k_ih,k_alt", help="exact keys to use (comma-separated)")
     ap.add_argument("--sample", type=int, help="random S1 sample per country (for quick evaluation)")
     ap.add_argument("--eval", action="store_true")
     ap.add_argument("--tag", default="")
@@ -135,7 +147,7 @@ def main():
         sampled_ids.append(a1["s1_idx"])
         print(f"{c}: {len(a1):,} S1 x {len(b1):,} pool", flush=True)
         if len(b1):
-            parts.append(block_country(a1, b1, a.k, a.cap).with_columns(pl.lit(c).alias("country_n")))
+            parts.append(block_country(a1, b1, a.k, a.cap, a.rev_k, a.keys.split(",")).with_columns(pl.lit(c).alias("country_n")))
     cand = pl.concat(parts).with_columns(pl.col("s1_idx").cast(pl.UInt32), pl.col("pool_idx").cast(pl.UInt32))
     sampled = pl.concat(sampled_ids).cast(pl.UInt32).alias("s1_idx").to_frame()
     out = Path(cfg["cache_dir"]) / "cand"
