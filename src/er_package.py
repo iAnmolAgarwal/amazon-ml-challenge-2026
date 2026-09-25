@@ -88,7 +88,7 @@ for split in ("train", "test"):
 
 DOC = ROOT / "docs" / "Documentation_template.md"
 PLACEHOLDERS = ("[Your Team Name]", "[List all team members]", "[Date]", "[e.g.,", "[total]", "[]", "[brief description]", "[your best validation score]", "[Brief description", "[Blocking + Classifier", "*Provide a brief", "*Describe how", "*Key insights", "*Outline your", "*Summarize your", "*Include any", "*Your complete")
-SRC_FILES = ["common.py", "er.py", "er_dict.py", "er_norm.py", "er_block.py", "er_feat.py", "er_feat2.py", "er_feat3.py", "er_feat4.py", "er_feat5.py", "er_stage3.py", "er_model.py", "er_eval.py", "er_predict.py", "er_package.py"]
+SRC_FILES = ["common.py", "er.py", "er_dict.py", "er_norm.py", "er_block.py", "er_feat.py", "er_feat2.py", "er_feat3.py", "er_feat4.py", "er_feat5.py", "er_feat6.py", "er_stage3.py", "er_model.py", "er_eval.py", "er_predict.py", "er_package.py"]
 
 
 def validate(mt, ct, cfg, test_dir):
