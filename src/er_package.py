@@ -54,6 +54,8 @@ python src/er_block.py --split train              # candidate generation (blocki
 python src/er_block.py --split test
 python src/er_feat.py --split train               # pair features
 python src/er_feat.py --split test
+python src/er_feat2.py --split train              # side-car features (name frequency, conservative names)
+python src/er_feat2.py --split test
 python src/er_eval.py {attempt}                   # optional: 5-fold CV, macro F0.5
 python src/er_predict.py {attempt}                # train on train, write submissions/NN_{attempt}.tsv (+ .candidates.tsv)
 ```
