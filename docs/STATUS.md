@@ -1,6 +1,6 @@
 # Live status / handoff (update at every milestone)
 
-Last update: 2026-09-25 ~09:15 IST (003 significant; 003 predict on A; 004 CV on B fold 0 done 1149 s, peak 46.6 GB, ETA ~10:35; Astra gate 6 audit running -> docs/astra/06_audit.md)
+Last update: 2026-09-25 09:30 IST. B (spot) reclaimed 09:20 IST mid 004 CV (fold 2). 004 predict (train 100%) on A -> ~/predict_004.log, PREDICT004_DONE; A then auto-runs 004b_coherence50 CV (~/eval_004b.log, EVAL004B_DONE, ~10:30). Gate: 004b significant over 003 -> upload 004 (submission 4, human uploads from Mac). Replacement spot B launching in us-east-1d (scratchpad relaunch_b2.log). Next after sub-4: India native-script dictionary (docs/astra/06_audit.md #1, user approved to start after sub-4). Gate 7 compliance audit running -> docs/astra/07_audit.md (fixes need approval).
 
 ## Scores
 | # | attempt | CV macro F0.5 | public LB | notes |
