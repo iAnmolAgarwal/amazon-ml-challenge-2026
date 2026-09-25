@@ -1,5 +1,37 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## 25 Sep ~18:30 IST: RESEARCH PHASE, paused by the usage limit until ~21:30 IST
+- 9 research lanes ran on a shared 10% train sample. Reports: docs/research/r1..r9.md; each has a "Pending when resumed" section listing jobs and logs on A (~/aml/research/rN/).
+- Kit: ~/aml/rk/ on A (rk.py = exact 006 decision on the sample, 0 mismatches; run.sh = memory-capped queue; brief in the session scratchpad brief.md).
+- **Converged finding (r1, r7, r8 and r9 independently):**
+  - Decoys are near-copies of real entities:
+    - house number shifted by d in {1,2,3,4,5,7,9,11,13,21} (test has 1.94x these);
+    - an inserted word from a fixed list (group/holdings/ventures/downtown/lakeside...; France: participations/holding/groupe/et fils);
+    - a legal suffix swap.
+  - True-match noise instead truncates digits, adds filler words (center/services) and uses aka/fka/dba.
+  - Test decoys come in clusters sharing the perturbed house number (train: none). Never use sibling/support/coherence features; judge each pair against the S1 alone.
+- **Best measured lead (r5):** stage-3 correction boosted from logit(p006) with 32 pair features (name/address IDF masses, house relations, legal forms, char-3-gram). Quick subset: **+0.0066** (5/5, SE 0.0003; India +0.0064, US +0.0067). The full-sample check was lost when spot B was reclaimed.
+- **Other results:**
+  - r2 (house relation / house agreement / source balance): +0.0069 on the quick subset. House agreement and source balance are sibling features, so they risk the decoy trap.
+  - r4: the decision rule is already optimal, and the context stacker emits decoys on test.
+  - r8: retrieval is worth +0.001; India native words are worth 0.
+  - r4 side finding: name-frequency counts are raw per split; US test has half the S1, so normalize per country size.
+- **UNATTENDED CHAIN RUNNING ON A** (started 12:56 UTC): `~/aml/build/chain.sh`, log build/chain.log.
+  - It runs feat5 (build/er_feat5.py = proposed src/er_feat5.py) for train us/india and test india/us/france, then merges, then build/stage3.py.
+  - stage3.py is 5-fold CV of arms ctrl / r5 / all (+hd, hd_shift) on the full train (98M pairs, band p006 >= 0.001).
+  - Outputs:
+    - build/stage3.json: CV, paired vs 006, test guard;
+    - cache/oof/008s_<arm>.parquet and test_008s_<arm>.parquet;
+    - build/matching_results_008s_<arm>.tsv: a candidate upload, NOT yet validated or packaged.
+  - Proposed harness files are in the scratchpad src_proposed/ (er_feat5.py, stage3.py). src/ is untouched: it needs the human's approval before integration.
+- Spot B was reclaimed twice today (r6a 1d, m7a 1b); do not rely on spot. Only A exists (on-demand).
+- **At resume:**
+  1. Read build/stage3.json and chain.log.
+  2. If the r5/all arm passes vs 006 and the guard holds, ask the human to approve integrating er_feat5 + stage 3 into src + attempt 008.
+  3. Validate and package; that is the upload candidate (2 uploads left on 25 Sep until 23:59 IST).
+  4. Then read the lanes' pending results for the full-integration build tomorrow.
+
+
 Last update: 2026-09-25 ~16:55 IST. **ALL COMPUTE STOPPED** at the user's request: A is idle, no spot instance exists, and no Mac watchers are running.
 Next phase (user's decision): a deep research phase. 10 independent parallel agents (Opus 5.5, max effort) explore every configuration for a >0.98 breakthrough. Nothing gets built or run at scale until there is evidence. See docs/research_brief.md.
 
