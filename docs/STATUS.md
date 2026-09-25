@@ -1,6 +1,9 @@
 # Live status / handoff (update at every milestone)
 
-Last update: 2026-09-25 10:30 IST. 004b PASSED (0.96351, +0.00242 over 003, 5/5) -> submission 4 = submissions/03_004_coherence_full.tsv + 03_004_coherence_full_code.zip (validated, strict PASS; user uploads ~10:50). Dictionary (commit c1b43a7, attempt 005_indic) rebuild: A runs train split (~/run_split.sh train; log ~/dict_pipeline_train.log; marker ~/DICT_TRAIN_DONE; old caches backed up in ~/aml/cache_v004). Test split: spot B relaunch in us-east-1f (scratchpad relaunch_b4.log) runs ~/run_split.sh test (marker ~/DICT_TEST_DONE); if B dies, run test on A after train. B reclaimed twice today (09:20, 10:20). IAM allows only r7a/m7a/g5/t3. Then: 005 CV at 50% on A (compare with 004b), predict --train-frac 1.0, validate, package -> submission 5 (~14:00-15:00). Phase 2: map 171 test-only native business words (91% precision rough transliteration; not yet adopted).
+Last update: 2026-09-25 ~11:55 IST.
+KEY FINDING (12:05): coherence (feat3) inflates decoy matches on TEST. House-number conflict among emitted pairs: US train OOF 7.4%; test sub-1 5.5%, sub-2 7.0%, sub-4 (004) 14.7%; France 1.5% -> 6.0%; India 15.9% -> 18.1%. Test has ~2x decoys per S1 (pool/S1 5.76 vs 4.68). Do NOT re-upload 004 (its upload failed on the portal due to server load; user may email support@unstop.com). Next submission = 005n_indic_nocoh (dictionary, no feat3), guard: test US conflict ~7%.
+Running on A: 005_indic CV (dictionary + feat3, for measurement only) -> chain6: 005n CV (~13:15) -> test rebuild unless ~/DICT_TEST_DONE exists -> predict 005n --train-frac 1.0 (~PREDICT005N_DONE). Spot B (r7i.2xlarge us-east-1a) may run the test rebuild in parallel; if so relay test norm/cand/feat/feat2 to A and touch ~/DICT_TEST_DONE on A.
+Team: user's registered team is T.A.S.K (4 members incl. the user); teammates built a parallel Codex pipeline (audit docs/astra/08_codex_pipeline_audit.md: CV India 0.9710 / US 0.9784; methodology doc must list the user too). Waiting: whether it has per-entity OOF scores (for a paired comparison / blend).
 
 ## Scores
 | # | attempt | CV macro F0.5 | public LB | notes |
