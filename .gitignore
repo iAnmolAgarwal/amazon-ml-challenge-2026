@@ -18,3 +18,7 @@ __pycache__/
 attempts/*/results_*.json
 logs/
 submissions/*.tsv
+submissions/**/*.tsv
+submissions/**/*.zip
+submissions/**/*.txt
+submissions/**/*.json

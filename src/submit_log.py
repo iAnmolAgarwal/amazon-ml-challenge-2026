@@ -7,7 +7,7 @@ from pathlib import Path
 
 from common import ROOT, read_json, sha256
 
-LOG = ROOT / "submissions" / "log.csv"
+LOG = ROOT / "submissions" / "archive" / "log.csv"
 FIELDS = ["n", "timestamp_utc", "day_ist", "attempt_id", "file", "sha256", "code_zip_sha256", "cv_mean", "cv_std", "metric", "git_commit", "public_lb", "notes"]
 IST = timezone(timedelta(hours=5, minutes=30))
 PER_DAY, TOTAL = 5, 15

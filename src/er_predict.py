@@ -89,7 +89,7 @@ def main():
     m = name(pred.sort(["s1_idx", "prob", "pool_idx"], descending=[False, True, False])).group_by("entity_id", maintain_order=True).agg(pl.col("pid").alias("ids"))
     assert pred.join(pairs, on=["s1_idx", "pool_idx"], how="anti").is_empty(), "a match is not a scored candidate"
     c = name(pairs.select("s1_idx", "pool_idx").sort("s1_idx", "pool_idx")).group_by("entity_id", maintain_order=True).agg(pl.col("pid").alias("ids"))
-    out = ROOT / "submissions"
+    out = ROOT / "submissions" / "archive"
     out.mkdir(exist_ok=True)
     n = next_n(out)
     mp, cp = out / f"{n:02d}_{a.attempt_id}.tsv", out / f"{n:02d}_{a.attempt_id}.candidates.tsv"
