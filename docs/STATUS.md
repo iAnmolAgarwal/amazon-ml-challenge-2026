@@ -1,5 +1,13 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## 26 Sep 05:05 IST: optional upload 9 building (France lift + parser), awaiting the human's approval
+- Chain on A: ~/aml/build/chain_lp.sh (log ~/aml/build/chain_lp.log), staging only (no repo src edits):
+  build/lift_parser.py -> cache/feat/{train,test}_feat6l (dm_* = logit(score) - log(sum nd / sum n0) per country and kind; tables in use: train_us, train_india, test_france) and test_feat5p (France house columns with the repaired French house parser; train_feat5p = symlink to train_feat5);
+  013_stage3lp (FEATS3 feat5p + feat6l) CV + paired_full vs 009 (expect ~neutral in-country);
+  014_route (OLD 013, models symlinked from 010) train + test; 015_lexical (SRC 014) -> 09_015_lexical.tsv; guard vs 012.
+- Decision rule for upload 9: in-country CV of 013 vs 009 within +-0.0001 (no harm), and France guard moving as the review predicted (pairs/S1 ~3.23 -> ~3.27, empty ~5.9% -> ~5.8%, decoy-shift emissions down). Then ask the human to approve adding lift_parser logic to src (er_feat6 lift tag + er_norm French fallback) and upload.
+- Reminder: upload 8 (012_lexical) is the file in submissions/ now; the user wakes ~06:00 to upload it.
+
 ## 26 Sep 05:00 IST: MORNING HANDOFF (uploads 7 and 8 built overnight)
 - **Recommended upload: 08_012_lexical** = 009 + char-3-gram retrieval route (010) + lexical correction (012).
   File: submissions/matching_results.tsv (md5 6da271f4...), code zip submissions/08_012_lexical_code.zip; validator PASS on A (--check-ids).
