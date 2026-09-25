@@ -2,7 +2,7 @@
 
 Only the team leader uploads. This file is updated after every scored upload, so check it before starting new work. The same content is shared as the team handoff document.
 
-As of 25 Sep 2026, 23:20 IST. Deadline: 27 Sep 23:59 IST. Uploads left: 11 of 15 overall (5 per IST day).
+As of 26 Sep 2026, 01:40 IST. Deadline: 27 Sep 23:59 IST. Uploads left: 10 of 15 overall (5 per IST day).
 Numbers are labelled **measured** (computed on data), **derived** (arithmetic on measured numbers) or **guessed**.
 
 ## 1. Where we are
@@ -12,11 +12,12 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 | 1 `001_baseline` | blocking + LightGBM | 0.94292 | 0.929 |
 | 2 `002_namefreq` | name-frequency + conservative-name features | 0.96050 | 0.949 |
 | 4 `006_stage2` | native-script dictionary, 0.6 floor, stage-2 competition features | 0.97423 | 0.963 |
-| **5 `008_stage3`** | **+ stage-3 correction with 34 label-free pair features** | **0.98254** (India 0.98029, US 0.98403) | **0.974** |
+| 5 `008_stage3` | + stage-3 correction with 34 label-free pair features | 0.98254 (India 0.98029, US 0.98403) | 0.974 |
+| **6 `009_stage3m`** | **+ 5 label-free decoy-marker name features (`er_feat6.py`)** | **0.98498** (India 0.98361, US 0.98589) | **0.981** |
 
-- The CV→LB gap shrank from −0.011 (006) to −0.0085 (008). The new features reject the decoys that test has more of (measured).
-- **Implied France** (LB minus US/India at CV weights 0.38/0.47): 0.902 → **0.929** (derived). France is 15% of test and has no labels.
-- 008 details (measured):
+- The CV→LB gap shrank from −0.011 (006) to −0.0085 (008) to −0.004 (009). The new features reject the decoys that test has more of (measured).
+- **Implied France** (LB minus US/India at CV weights 0.38/0.47): 0.902 (006) → 0.929 (008) → **0.960** (009) (derived). France is 15% of test and has no labels. The decoy-marker table France builds from its own test pairs rejects French decoys (word swaps like Club↔École, inserted Groupe/Holding/Développement/Participations, SARL→SCI swaps, shifted house numbers).
+- 008 details (measured; 009 adds +0.00244 CV, SE 0.00002, 5/5):
   - pair precision 0.9966, recall 0.9548; blocking oracle 0.9940;
   - F0.5 by true-match count: 0 → 0.985, 1 → 0.944 (weakest), 2 → 0.980, 3+ → 0.985–0.987.
 
@@ -24,11 +25,11 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 
 | | |
 |---|---|
-| Submission | #5, uploaded 25 Sep 2026, ~23:00 IST |
-| Attempt | `attempts/008_stage3` (parent `006_stage2`); code commit `5cea04d` |
-| CV | 0.98254; paired vs 006: +0.00831, SE 0.00002, 5/5 folds |
-| Public LB | **0.974** |
-| matching_results.tsv | sha256 `bf456199656d6af5851345ecc808ffebd8b0eaf2a7dfcabc874925c5fc2560c3` (md5 `c674f878b78c8fcc093c5110b8ec492e`); 1,732,544 rows, 5,748,901 matches, 5.8% empty |
+| Submission | #6, uploaded 26 Sep 2026, ~01:30 IST |
+| Attempt | `attempts/009_stage3m` (parent `008_stage3`); code commit `f192703` |
+| CV | 0.98498; paired vs 008: +0.00244, SE 0.00002, 5/5 folds (vs 006: +0.01075) |
+| Public LB | **0.981** |
+| matching_results.tsv | sha256 `7d974a6d68d4cd06f3391d0b2387a5fd383da56f39e32b40d7ef42603c417783` (md5 `4474c1898f1bc1c375e7ea7c21f6cdd2`); 1,732,544 rows, 5,739,657 matches, 5.9% empty |
 | Validator | organisers' `validate_submission.py --check-ids`: PASS (matching + candidates) |
 
 | # | Uploaded (IST) | Attempt | CV | Public LB |
@@ -37,7 +38,8 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 | 2 | 25 Sep 07:08 | 002_namefreq | 0.96050 | 0.949 |
 | 3 | 25 Sep ~11:00 | 004_coherence_full | - | not scored (portal failure) |
 | 4 | 25 Sep 15:22 | 006_stage2 | 0.97423 | 0.963 |
-| **5** | **25 Sep 23:00** | **008_stage3** | **0.98254** | **0.974** |
+| 5 | 25 Sep 23:00 | 008_stage3 | 0.98254 | 0.974 |
+| **6** | **26 Sep 01:30** | **009_stage3m** | **0.98498** | **0.981** |
 
 ## 2. What the data generator does (the key insight)
 
@@ -85,6 +87,7 @@ Four independent analyses converged on this. Reports are in `docs/research/r1.md
      - **legal form (4):** equal, nested, disjoint, one-sided;
      - **char-3-gram name cosine (1)**;
      - **signed house shift (2):** pool − S1, and whether it is in the decoy shift set.
+   - **009 adds 5 name-operator features** (`er_feat6.py`): words added / dropped by the pool name, and label-free decoy-marker scores of the added, dropped and swapped words. Score = (n_d + 1)/(n_d + n_0 + 10), where n_d counts candidate pairs in which the word is added and the pool house number is the S1's shifted by d ∈ {1,2,3,4,5,7,9,11,13,21}, and n_0 counts pairs with equal house numbers. Tables come from train pairs; France builds its own table from its test pairs.
 6. **Decision** (`er_model.decide`):
    - each pool record goes to its highest-probability S1;
    - per S1, keep the prefix k that maximises 5·Σp₁..ₖ/(Σp + 4k), unless P(no match) = Π(1−p) is larger;
@@ -114,7 +117,7 @@ Four independent analyses converged on this. Reports are in `docs/research/r1.md
 
 | # | Step | Evidence | Expected gain |
 |---|---|---|---|
-| 1 | **Decoy name-marker features + signed house delta.** Label-free marker score per country: (n_d + 1)/(n_d + n_0 + 10), counting pairs where a token is added and the house shift is in D vs where the houses are equal. France gets its own table from test pairs. Features: hd, hd_D, nA, nB, dm_add, dm_drop, dm_swap. | Measured on the 10% sample, same stage-3 protocol: +0.00292 on top of the 008 feature set (SE 0.00009, 5/5). Total +0.01014 vs 006. Gain grows to +0.0125 under doubled decoys. | CV about 0.985; LB about +0.003 (derived) |
+| 1 | **(done in 009) Decoy name-marker features + signed house delta.** Label-free marker score per country: (n_d + 1)/(n_d + n_0 + 10), counting pairs where a token is added and the house shift is in D vs where the houses are equal. France gets its own table from test pairs. Features: hd, hd_D, nA, nB, dm_add, dm_drop, dm_swap. | Measured on the 10% sample, same stage-3 protocol: +0.00292 on top of the 008 feature set (SE 0.00009, 5/5). Total +0.01014 vs 006. Gain grows to +0.0125 under doubled decoys. | CV about 0.985; LB about +0.003 (derived) |
 | 2 | **France / unseen-country robustness.** Leave-one-country-out loses 0.05–0.07 (train US → India 0.896 vs 0.965 in-country). | Measured, quick subset. Recipes not yet measured: generator features, country-size-normalised name counts (US test has half the S1, so raw counts shift), self-training on the target country. | France +0.01 to +0.03 → LB +0.002 to +0.005 (guessed) |
 | 3 | **Candidate-set reduction.** New organiser rule: smaller candidate_pairs.tsv per S1 ranks higher beyond the LB. Treat stage 1 as a learned filter (keep pairs with stage-1 p ≥ ~0.001, about 6 per S1 instead of 45) and run the final model only on those. | 14% of pairs keep 99.991% of positives (measured, sample); the F0.5 cost table is not measured yet. | Ranking criterion, not LB |
 | 4 | **Cheap retrieval:** reverse top-1 (each pool record's best S1), +0.14 pairs per S1; key "first 6 letters of name + house". | Oracle, measured: catches 24–28% of never-retrieved gold pairs. | LB +0.0015 (derived); conflicts with #3, so keep it small |
