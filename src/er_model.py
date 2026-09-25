@@ -15,6 +15,7 @@ PARAMS = dict(objective="binary", learning_rate=0.05, num_leaves=127, min_data_i
 ROUNDS = 600
 TRAIN_FRAC = 0.2
 FLOOR = 0.0
+EMPTY_RATIO = 1.0
 ID_COLS = ("s1_idx", "pool_idx", "y", "fold", "country_n", "prob")
 
 
@@ -57,8 +58,10 @@ def predict(model, X):
     return model.predict(X, num_threads=8).astype(np.float32)
 
 
-def decide(pairs, cfg=None, floor=0.0):
+def decide(pairs, cfg=None, floor=0.0, empty_ratio=1.0):
     """Assignment + per-entity k selection maximizing expected F0.5, then pairs with prob <= floor are dropped.
+
+    An S1 gets any prediction only if its best expected F0.5 exceeds empty_ratio x the probability that it has no match.
 
     pairs: s1_idx, pool_idx, prob. Each pool record is kept only for its highest-probability S1
     (ties -> lowest s1_idx). For each S1 with kept probs p1>=...>=pn, E[T] = sum(p);
@@ -73,7 +76,7 @@ def decide(pairs, cfg=None, floor=0.0):
         p0=(1 - pl.col("prob")).log().sum().over("s1_idx").exp(),
     ).with_columns(score=5 * pl.col("cum") / (pl.col("et") + 4 * pl.col("k")))
     best = d.sort(["s1_idx", "score", "k"], descending=[False, True, False]).group_by("s1_idx", maintain_order=True).agg(pl.col("score").first().alias("best"), pl.col("k").first().alias("kbest"), pl.col("p0").first())
-    keep = best.filter(pl.col("best") > pl.col("p0")).select("s1_idx", "kbest")
+    keep = best.filter(pl.col("best") > empty_ratio * pl.col("p0")).select("s1_idx", "kbest")
     return d.join(keep, on="s1_idx").filter((pl.col("k") <= pl.col("kbest")) & (pl.col("prob") > floor)).select("s1_idx", "pool_idx", "prob")
 
 

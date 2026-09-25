@@ -88,7 +88,7 @@ def main():
         print(f"{len(pairs):,} out-of-fold pairs from {a.from_oof} (no training), {len(ents):,} entities", flush=True)
     else:
         pairs, keys, cs, cols, frac = train_oof(a, cfg, mod, get, gold, fo, ents, t_all)
-    pred = get("decide")(pairs, cfg, floor=get("FLOOR"))
+    pred = get("decide")(pairs, cfg, floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"))
     ent = M.per_entity_f05(pred.select("s1_idx", "pool_idx"), gold.filter(pl.col("s1_idx").is_in(ents["s1_idx"].implode())), ents.select("s1_idx", "fold", "country_n"))
     ent = ent.join(cs, on="s1_idx", how="left").fill_null(0).with_columns(
         oracle=pl.when(pl.col("t") == 0).then(1.0).otherwise(1.25 * pl.col("c") / (0.25 * pl.col("t") + pl.col("c")).clip(1e-9))
@@ -104,7 +104,7 @@ def main():
         "fold_scores": scores, "mean": float(np.mean(scores)), "std": float(np.std(scores, ddof=1)) if len(scores) > 1 else 0.0,
         "test_weighted": tw, "oracle": float(ent["oracle"].mean()), "pair_precision": float(tp / max(k, 1)), "pair_recall": float(tp / max(t_, 1)),
         "by_country": by_c.to_dicts(), "by_true_matches": by_t.to_dicts(), "n_entities": len(ent), "n_pairs": len(keys),
-        "tag": a.tag, "train_frac": frac, "floor": get("FLOOR"), "from_oof": a.from_oof, "features": cols, "runtime_s": time.time() - t_all, "git_commit": git_commit(),
+        "tag": a.tag, "train_frac": frac, "floor": get("FLOOR"), "empty_ratio": get("EMPTY_RATIO"), "from_oof": a.from_oof, "features": cols, "runtime_s": time.time() - t_all, "git_commit": git_commit(),
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"), "n_rows": len(ent),
     }
     out = ROOT / "attempts" / a.attempt_id

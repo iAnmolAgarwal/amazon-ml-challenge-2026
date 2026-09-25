@@ -39,18 +39,8 @@ def write_lists(path, ids, groups, col):
             f.write(f"{i}\t{','.join(lst)}\n")
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("attempt_id")
-    ap.add_argument("--tag", default="")
-    ap.add_argument("--train-frac", type=float)
-    a = ap.parse_args()
-    cfg = load_config()
-    mod = load_attempt(a.attempt_id)
-    get = lambda name: getattr(mod, name, getattr(M, name))
-    frac = a.train_frac or get("TRAIN_FRAC")
-    cache = Path(cfg["cache_dir"])
-    t0 = time.time()
+def train_and_score(a, cfg, mod, get, cache, frac, t0):
+    """Train on the sampled training entities, score every test candidate pair, save the test probabilities."""
     s1 = M.load_s1(cfg, "train")
     gold = M.load_gold(cfg, s1)
     extras = getattr(mod, "EXTRA_FEATS", [])
@@ -84,7 +74,29 @@ def main():
     (cache / "oof").mkdir(exist_ok=True)
     pairs.write_parquet(cache / "oof" / f"test_{a.attempt_id}{a.tag}.parquet")
     del Xt
-    pred = get("decide")(pairs, cfg, floor=get("FLOOR"))
+    return pairs, keep, yv, cols
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("attempt_id")
+    ap.add_argument("--tag", default="")
+    ap.add_argument("--train-frac", type=float)
+    ap.add_argument("--from-probs", help="re-decide on saved test probabilities of this attempt (no training)")
+    a = ap.parse_args()
+    cfg = load_config()
+    mod = load_attempt(a.attempt_id)
+    get = lambda name: getattr(mod, name, getattr(M, name))
+    frac = a.train_frac or get("TRAIN_FRAC")
+    cache = Path(cfg["cache_dir"])
+    t0 = time.time()
+    if a.from_probs:
+        pairs = pl.read_parquet(cache / "oof" / f"test_{a.from_probs}{a.tag}.parquet", columns=["s1_idx", "pool_idx", "prob"])
+        keep, yv, cols = np.array([], dtype=np.uint32), np.array([], dtype=np.int8), []
+        print(f"re-deciding {len(pairs):,} test pairs from {a.from_probs} (no training)", flush=True)
+    else:
+        pairs, keep, yv, cols = train_and_score(a, cfg, mod, get, cache, frac, t0)
+    pred = get("decide")(pairs, cfg, floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"))
     ts1 = pl.read_parquet(cache / "norm" / "test_s1.parquet", columns=["entity_id"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32))
     tpool = pl.read_parquet(cache / "norm" / "test_pool.parquet", columns=["entity_id"]).with_row_index("pool_idx").with_columns(pl.col("pool_idx").cast(pl.UInt32))
     name = lambda df: df.join(ts1, on="s1_idx", maintain_order="left").join(tpool.rename({"entity_id": "pid"}), on="pool_idx", maintain_order="left")
@@ -100,7 +112,7 @@ def main():
     write_lists(cp, ids, c, "candidate_entity_ids")
     src = {p.name: sha256(p) for p in sorted((ROOT / "src").glob("*.py"))} | {"train.py": sha256(ROOT / "attempts" / a.attempt_id / "train.py")}
     man = dict(attempt=a.attempt_id, tag=a.tag, train_frac=frac, n_entities=len(keep), sample_sha256=hashlib.sha256(np.sort(keep).tobytes()).hexdigest(), n_train_pairs=len(yv), n_pos=int(yv.sum()),
-               features=cols, params=get("PARAMS"), rounds=get("ROUNDS"), floor=get("FLOOR"), custom_fit=hasattr(mod, "fit"), git_commit=git_commit(), src_sha256=src,
+               features=cols, params=get("PARAMS"), rounds=get("ROUNDS"), floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"), from_probs=a.from_probs, custom_fit=hasattr(mod, "fit"), git_commit=git_commit(), src_sha256=src,
                versions=dict(python=sys.version.split()[0], polars=pl.__version__, numpy=np.__version__, lightgbm=lgb.__version__),
                matching_sha256=sha256(mp), candidates_sha256=sha256(cp), n_matched_pairs=len(pred), n_candidate_pairs=len(pairs), runtime_s=round(time.time() - t0))
     mp.with_suffix(".json").write_text(json.dumps(man, indent=1))
