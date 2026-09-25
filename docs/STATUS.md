@@ -1,5 +1,10 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## 26 Sep 05:30 IST: upload 9 READY (pending the human's approval of src changes)
+- 09_015_lexical = upload 8 + France-only fixes: lifted decoy-marker scores (feat6l) + repaired French house parser (test_feat5p), stage 3 retrained (013), route (014) and lexical (015) rebuilt on top.
+- In-country CV 013 vs 009: +0.00001 (SE 0.00001, 3/5): neutral, as intended. Guard 8 -> 9: France pairs/S1 3.232 -> 3.275, empty 5.95% -> 5.81%, conflict 1.06% -> 1.08%; US/India unchanged. Validator PASS; files in submissions/archive/09_015_lexical.* (tsv sha 0215707d...).
+- To ship: port build/lift_parser.py logic (scratchpad lift_parser_used.py) into src (lift tag in er_feat6 + French fallback parser step), attempt folders 013/014/015 into the repo, package zip. Recommended order: upload 8 first (measured layers), then 9 (France-only, simulation-validated).
+
 ## 26 Sep 05:05 IST: optional upload 9 building (France lift + parser), awaiting the human's approval
 - Chain on A: ~/aml/build/chain_lp.sh (log ~/aml/build/chain_lp.log), staging only (no repo src edits):
   build/lift_parser.py -> cache/feat/{train,test}_feat6l (dm_* = logit(score) - log(sum nd / sum n0) per country and kind; tables in use: train_us, train_india, test_france) and test_feat5p (France house columns with the repaired French house parser; train_feat5p = symlink to train_feat5);
