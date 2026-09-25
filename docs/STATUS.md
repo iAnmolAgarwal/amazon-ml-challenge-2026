@@ -1,5 +1,21 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## 26 Sep ~01:55 IST: submission 6 = 009_stage3m, public LB 0.981 (008: 0.974). Upload 7 building.
+- 009 = 008 + label-free decoy-marker name features (src/er_feat6.py; France builds its own table from test pairs). Full CV 0.98498 (+0.00244 vs 008). Implied France 0.929 -> 0.960. Commit f192703; LATEST_SUBMISSION.md (= Desktop handoff) updated, pushed cc3fbe2.
+- **Upload 7 plan = 009 + retrieval route (Codex recipe, our harness) + France mass calibration.** Upload 8 = + lexical layer (+0.0003 CV) + confirmed agent findings.
+- Upload-7 machinery (all staged in ~/aml_stage on A; proposed src in scratchpad src_proposed/, not yet in the repo):
+  - src/er_retrieve.py: char-3-gram TF-IDF top-40 per view (name_core, addr_norm), pool in 125k blocks. Parity vs Codex cohort-6 edges: similarities equal, differences = ties only.
+  - Test retrieval running: C (india addr shard 0/2, us addr 0/2, name india), E (india addr 1/2, us addr 1/2, name us, france addr+name). Done markers ~/aml/build_retC.done / build_retE.done. ETA ~03:30 IST.
+  - F: train-sample retrieval (s10 S1) for our own CV of the route; name view re-queued after an output-dir bug; marker build_retF.done.
+  - src/er_newpairs.py (union / fit / score): new pairs = retrieval minus existing candidates; 66-feature LightGBM (63 leaves, 300 rounds) trained on existing train pairs of the 10% owner sample (fold models + full model DONE on A: cache/models/010_route/); keep p > 0.001; append to 009 probabilities. Attempt 010_route (OLD=009_stage3m).
+  - Mac orchestrator scratchpad/orch010.sh (log orch010.log, /tmp/orch010_train.log) waits for the markers, relays edges to A, runs union, er_feat/er_feat2/er_feat5 with --tag _new (test) and _s10new (train), scores, runs build/val010.py (paired 010 vs 009 on sample owners) and er_predict 010 + test guard.
+  - src/er_masscal.py (written, not yet deployed): France-only logit shift delta >= 0 so mean sum-of-p per France S1 = train true matches per S1 in candidates (3.394) - 0.1. Validated in LOCO by the France agent (r3.md): +0.0094 (5/5), +0.024 when over-claiming, ~0 otherwise; 10% confirmation pending. Attempt 011 would = masscal over 010.
+- Agents: France lane r3 resumed on D (confirming masscal on 10%, testing in-country masscal under doubled decoys). Codex-review + breakthrough agent on G (report docs/research/codex_leads.md). All other lanes paused (user: resume only when told).
+- Codex session's chain on A is SIGSTOPped at the user's OK: resume with `ssh amlc-a 'kill -CONT $(cat ~/codex_paused_pids.txt)'`.
+- Machines: A us-east-1 (on-demand), C us-west-2 (on-demand), D us-east-2 (on-demand), E us-west-2 (spot), F us-east-2 (spot), G us-east-1 (spot). All tagged; auto-shutdown 27 Sep 18:30 UTC.
+- Uploads: 10 of 15 left; 26 Sep: 1 of 5 used.
+
+
 ## 25 Sep ~23:05 IST: submission 5 = 008_stage3, public LB 0.974 (006: 0.963)
 - 008 = 006 + stage-3 correction (src/er_stage3.py) boosted from logit(p006) with 34 label-free pair features (src/er_feat5.py). Full CV **0.98254** (+0.00831 vs 006, SE 0.00002, 5/5; US +0.0084, India +0.0082); pair P 0.9966 R 0.9548; test guard clean (house conflict US 8.4% / India 17.0% / France 1.0%). Expected LB ~0.970-0.974. Commit 5cea04d.
 - Upload file: submissions/matching_results.tsv (md5 c674f878...). Archive: submissions/archive/05_008_stage3.* (validation + code zip being produced).
