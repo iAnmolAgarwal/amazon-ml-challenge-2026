@@ -23,30 +23,14 @@ from common import ROOT, git_commit, load_attempt, load_config
 TEST_WEIGHTS = {"us": 0.38, "india": 0.47}
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("attempt_id")
-    ap.add_argument("--tag", default="")
-    ap.add_argument("--train-frac", type=float)
-    ap.add_argument("--folds")
-    a = ap.parse_args()
-    cfg = load_config()
-    mod = load_attempt(a.attempt_id)
-    get = lambda name: getattr(mod, name, getattr(M, name))
-    t_all = time.time()
-    s1 = M.load_s1(cfg, "train")
-    gold = M.load_gold(cfg, s1)
-    fo = M.folds(cfg, s1, gold)
+def train_oof(a, cfg, mod, get, gold, fo, ents, t_all):
+    """Train one model per fold (sampled entities of the other folds) and return out-of-fold probabilities for all pairs."""
     feat = pl.read_parquet(Path(cfg["cache_dir"]) / "feat" / f"train_feat{a.tag}.parquet")
-    side = Path(cfg["cache_dir"]) / "cand" / f"train_s1{a.tag}.parquet"
-    ents = s1.join(pl.read_parquet(side), on="s1_idx", how="semi") if side.exists() else s1
-    ents = ents.join(fo.select("s1_idx", "fold"), on="s1_idx")
     for extra in getattr(mod, "EXTRA_FEATS", []):
         feat = feat.join(pl.read_parquet(Path(cfg["cache_dir"]) / "feat" / f"train_{extra}{a.tag}.parquet"), on=["s1_idx", "pool_idx"], how="left")
     feat = feat.join(fo.select("s1_idx", "fold"), on="s1_idx").join(gold.with_columns(y=pl.lit(1, pl.Int8)), on=["s1_idx", "pool_idx"], how="left").with_columns(pl.col("y").fill_null(0))
     cols = [c for c in M.feature_cols(feat, getattr(mod, "FEATURES", None)) if c not in getattr(mod, "EXCLUDE", [])]
     frac = a.train_frac or get("TRAIN_FRAC")
-    fold_ids = [int(x) for x in a.folds.split(",")] if a.folds else sorted(fo["fold"].unique().to_list())
     print(f"{len(feat):,} pairs, {len(ents):,} entities, {len(cols)} features, train_frac {frac}", flush=True)
     keys = feat.select("s1_idx", "pool_idx")
     yv = feat["y"].to_numpy()
@@ -75,7 +59,36 @@ def main():
     oof_dir = Path(cfg["cache_dir"]) / "oof"
     oof_dir.mkdir(exist_ok=True)
     pairs.write_parquet(oof_dir / f"{a.attempt_id}{a.tag}.parquet")
-    pred = get("decide")(pairs, cfg)
+    return pairs, keys, cs, cols, frac
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("attempt_id")
+    ap.add_argument("--tag", default="")
+    ap.add_argument("--train-frac", type=float)
+    ap.add_argument("--folds")
+    ap.add_argument("--from-oof", help="re-decide on saved out-of-fold probabilities of this attempt (no training)")
+    a = ap.parse_args()
+    cfg = load_config()
+    mod = load_attempt(a.attempt_id)
+    get = lambda name: getattr(mod, name, getattr(M, name))
+    t_all = time.time()
+    s1 = M.load_s1(cfg, "train")
+    gold = M.load_gold(cfg, s1)
+    fo = M.folds(cfg, s1, gold)
+    side = Path(cfg["cache_dir"]) / "cand" / f"train_s1{a.tag}.parquet"
+    ents = s1.join(pl.read_parquet(side), on="s1_idx", how="semi") if side.exists() else s1
+    ents = ents.join(fo.select("s1_idx", "fold"), on="s1_idx")
+    fold_ids = [int(x) for x in a.folds.split(",")] if a.folds else sorted(fo["fold"].unique().to_list())
+    if a.from_oof:
+        pairs = pl.read_parquet(Path(cfg["cache_dir"]) / "oof" / f"{a.from_oof}.parquet", columns=["s1_idx", "pool_idx", "prob"])
+        keys, cols, frac = pairs.select("s1_idx", "pool_idx"), [], None
+        cs = pairs.join(gold, on=["s1_idx", "pool_idx"], how="semi").group_by("s1_idx").len().rename({"len": "c"})
+        print(f"{len(pairs):,} out-of-fold pairs from {a.from_oof} (no training), {len(ents):,} entities", flush=True)
+    else:
+        pairs, keys, cs, cols, frac = train_oof(a, cfg, mod, get, gold, fo, ents, t_all)
+    pred = get("decide")(pairs, cfg, floor=get("FLOOR"))
     ent = M.per_entity_f05(pred.select("s1_idx", "pool_idx"), gold.filter(pl.col("s1_idx").is_in(ents["s1_idx"].implode())), ents.select("s1_idx", "fold", "country_n"))
     ent = ent.join(cs, on="s1_idx", how="left").fill_null(0).with_columns(
         oracle=pl.when(pl.col("t") == 0).then(1.0).otherwise(1.25 * pl.col("c") / (0.25 * pl.col("t") + pl.col("c")).clip(1e-9))
@@ -91,7 +104,7 @@ def main():
         "fold_scores": scores, "mean": float(np.mean(scores)), "std": float(np.std(scores, ddof=1)) if len(scores) > 1 else 0.0,
         "test_weighted": tw, "oracle": float(ent["oracle"].mean()), "pair_precision": float(tp / max(k, 1)), "pair_recall": float(tp / max(t_, 1)),
         "by_country": by_c.to_dicts(), "by_true_matches": by_t.to_dicts(), "n_entities": len(ent), "n_pairs": len(keys),
-        "tag": a.tag, "train_frac": frac, "features": cols, "runtime_s": time.time() - t_all, "git_commit": git_commit(),
+        "tag": a.tag, "train_frac": frac, "floor": get("FLOOR"), "from_oof": a.from_oof, "features": cols, "runtime_s": time.time() - t_all, "git_commit": git_commit(),
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"), "n_rows": len(ent),
     }
     out = ROOT / "attempts" / a.attempt_id

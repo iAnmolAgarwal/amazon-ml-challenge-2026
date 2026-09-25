@@ -82,7 +82,7 @@ def main():
     prob = M.predict_chunked(model, Xt, np.arange(len(keys))) if not hasattr(mod, "predict") else get("predict")(model, Xt)
     pairs = keys.with_columns(prob=pl.Series(prob))
     del Xt
-    pred = get("decide")(pairs, cfg)
+    pred = get("decide")(pairs, cfg, floor=get("FLOOR"))
     ts1 = pl.read_parquet(cache / "norm" / "test_s1.parquet", columns=["entity_id"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32))
     tpool = pl.read_parquet(cache / "norm" / "test_pool.parquet", columns=["entity_id"]).with_row_index("pool_idx").with_columns(pl.col("pool_idx").cast(pl.UInt32))
     name = lambda df: df.join(ts1, on="s1_idx", maintain_order="left").join(tpool.rename({"entity_id": "pid"}), on="pool_idx", maintain_order="left")
@@ -98,7 +98,7 @@ def main():
     write_lists(cp, ids, c, "candidate_entity_ids")
     src = {p.name: sha256(p) for p in sorted((ROOT / "src").glob("*.py"))} | {"train.py": sha256(ROOT / "attempts" / a.attempt_id / "train.py")}
     man = dict(attempt=a.attempt_id, tag=a.tag, train_frac=frac, n_entities=len(keep), sample_sha256=hashlib.sha256(np.sort(keep).tobytes()).hexdigest(), n_train_pairs=len(yv), n_pos=int(yv.sum()),
-               features=cols, params=get("PARAMS"), rounds=get("ROUNDS"), custom_fit=hasattr(mod, "fit"), git_commit=git_commit(), src_sha256=src,
+               features=cols, params=get("PARAMS"), rounds=get("ROUNDS"), floor=get("FLOOR"), custom_fit=hasattr(mod, "fit"), git_commit=git_commit(), src_sha256=src,
                versions=dict(python=sys.version.split()[0], polars=pl.__version__, numpy=np.__version__, lightgbm=lgb.__version__),
                matching_sha256=sha256(mp), candidates_sha256=sha256(cp), n_matched_pairs=len(pred), n_candidate_pairs=len(pairs), runtime_s=round(time.time() - t0))
     mp.with_suffix(".json").write_text(json.dumps(man, indent=1))
