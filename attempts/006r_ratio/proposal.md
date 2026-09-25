@@ -14,4 +14,4 @@ Floor audit (docs/astra/09_floor_audit.md), 002 OOF full graph: ratio 2.5 = 0.96
 No significant paired gain over 006_stage2.
 
 ## Result
-(fill after er_eval)
+CV 0.97408 (ratio 2.5, no floor, same 006 probabilities). Paired vs 006: -0.00015, SE 0.00001, 0/5 -> worse. Keep floor 0.6 on stage-2 probabilities.

@@ -12,7 +12,8 @@ A parallel Codex pipeline exists (audit docs/astra/08_codex_pipeline_audit.md: C
 | # | attempt | CV macro F0.5 | public LB | notes |
 |---|---|---|---|---|
 | sub-01 | 001_baseline (41 feats, train 20%) | 0.94292 +/- 0.00029 | 0.929 | commit 125b680; test norm without France fixes |
-| (candidate) | 005f_floor (dictionary, no feat3, floor 0.6) | 0.97083 (tw 0.97018; India 0.9683, US 0.9726; paired +0.00076 vs 005n, 005n +0.00899 vs 003) | - | predict pending on A |
+| (NEXT UPLOAD) | 006_stage2 (005f + stage-2 competition features, floor 0.6) | 0.97423 (tw 0.97368; India 0.9721, US 0.9757; paired +0.00340 vs 005f, 5/5; ratio rule 006r worse) | - | predict pending on A |
+| (fallback) | 005f_floor (dictionary, no feat3, floor 0.6) | 0.97083 (tw 0.97018; India 0.9683, US 0.9726; paired +0.00076 vs 005n, 005n +0.00899 vs 003) | - | predict pending on A |
 | (sub-4, upload failed on portal) | 004_coherence_full (003 + feat3, train 100%) | gate 004b_coherence50 0.96351 (paired +0.00242 vs 003, 5/5) | - | submissions/03_004_coherence_full.* |
 | (not submitted) | 003_trainfrac50 (002 trained on 50%) | 0.96109 +/- 0.00018 (paired +0.00059, SE 0.00004, 5/5) | - | predicting on A (~/predict_003.log, ~/PREDICT003_DONE) |
 | sub-02 | 002_namefreq (+feat2: name freq, conservative names, gated addr) | 0.96050 +/- 0.00021 | 0.949 | France-gated test normalization; implied France ~0.907 |

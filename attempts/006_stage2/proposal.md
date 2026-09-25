@@ -17,4 +17,4 @@ Parallel pipeline: two-stage LightGBM with these features reaches OOF 0.9754 (In
 No significant paired gain over 005f.
 
 ## Result
-(fill after er_eval)
+CV 0.97423; test-weighted 0.97368; India 0.9721, US 0.9757; singleton F0.5 0.9733; pair P 0.9932 R 0.9399. Paired vs 005f: +0.00340, SE 0.00005, 5/5 -> significant. Peak RSS 61.7 GB (CV).
