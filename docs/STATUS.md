@@ -1,5 +1,14 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## NIGHT PLAN 26 Sep 01:25 -> 06:00 IST (user asleep; wakes ~06:00 to upload)
+- Mac caffeinated 12 h. Orchestrator scratchpad/orch010.sh runs unattended (logs: scratchpad/orch010.log, /tmp/orch010_train.log).
+- Deliver by 06:00: upload 7 = 010_route (009 + retrieval route) as submissions/matching_results.tsv + code zip, validated (organiser validator on A), guard checked, plus the train-sample paired CV of the route (build/val010.py).
+  - Integrate er_retrieve.py, er_newpairs.py, attempt 010_route into the repo src/ (approved: merged build) and er_package SRC_FILES; commit, push.
+  - France mass calibration (er_masscal.py, attempt 011_route_frcal): NOT in upload 7 (009 already calibrated France: mass 3.33 vs target 3.29; the shift changes ~5k pairs).
+- Upload 8 in progress: lexical layer (Codex recipe: 6 token channels x 7 summaries = 42 cross-fitted likelihood features + residual LightGBM 100 rounds / 9 leaves / lr .04 on p006>=0.01 pairs); auditor measured +0.00032 over our build on the 10% sample.
+- France agent PAUSED (user); its D jobs SIGSTOPped. Codex-review agent on G running -> report docs/research/codex_leads.md; summarise for the user in the morning.
+- Morning report: upload-7 file + measured route gain + guard; Codex-review findings; upload-8 status.
+
 ## 26 Sep ~01:55 IST: submission 6 = 009_stage3m, public LB 0.981 (008: 0.974). Upload 7 building.
 - 009 = 008 + label-free decoy-marker name features (src/er_feat6.py; France builds its own table from test pairs). Full CV 0.98498 (+0.00244 vs 008). Implied France 0.929 -> 0.960. Commit f192703; LATEST_SUBMISSION.md (= Desktop handoff) updated, pushed cc3fbe2.
 - **Upload 7 plan = 009 + retrieval route (Codex recipe, our harness) + France mass calibration.** Upload 8 = + lexical layer (+0.0003 CV) + confirmed agent findings.
