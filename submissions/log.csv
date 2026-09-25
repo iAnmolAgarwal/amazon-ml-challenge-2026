@@ -1,0 +1,2 @@
+n,timestamp_utc,day_ist,attempt_id,file,sha256,code_zip_sha256,cv_mean,cv_std,metric,git_commit,public_lb,notes
+1,2026-09-25T00:24:30+00:00,2026-09-25,001_baseline,submissions/01_001_baseline.tsv,7587a0f2962aaaafcc05caa8b67cf0371908d6cf838643e6f8d1552cf66dc857,af23506c84ddb40239976344374d5ab2b6f6b677bb4b514f24eda7315cb91490,0.9429180875301146,0.0002863177414487958,f05_er,nogit,0.929,"baseline 001 (norm without France fixes, test feats commit 125b680); purpose: confirm format + CV-LB link"
