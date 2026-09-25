@@ -1,6 +1,6 @@
 # Live status / handoff (READ FIRST after any compaction)
 
-## 25 Sep ~23:00 IST: submission 5 = 008_stage3 (uploaded by the human; score pending)
+## 25 Sep ~23:05 IST: submission 5 = 008_stage3, public LB 0.974 (006: 0.963)
 - 008 = 006 + stage-3 correction (src/er_stage3.py) boosted from logit(p006) with 34 label-free pair features (src/er_feat5.py). Full CV **0.98254** (+0.00831 vs 006, SE 0.00002, 5/5; US +0.0084, India +0.0082); pair P 0.9966 R 0.9548; test guard clean (house conflict US 8.4% / India 17.0% / France 1.0%). Expected LB ~0.970-0.974. Commit 5cea04d.
 - Upload file: submissions/matching_results.tsv (md5 c674f878...). Archive: submissions/archive/05_008_stage3.* (validation + code zip being produced).
 - Next-build evidence (10% sample, same protocol): + label-free decoy markers and signed house delta (r9) = +0.01014 vs 006 (r9 add-on +0.0029, 5/5); gains grow under doubled decoys (+0.0125, r7).
