@@ -62,8 +62,8 @@ python src/er_feat2.py --split train              # side-car features (name freq
 python src/er_feat2.py --split test
 python src/er_feat3.py --split train              # side-car coherence features (agreement with each S1's anchor candidates)
 python src/er_feat3.py --split test
-{pre}python src/er_eval.py {attempt}                   # optional: 5-fold CV, macro F0.5
-python src/er_predict.py {attempt} --train-frac {frac}  # train on train, write submissions/NN_{attempt}.tsv (+ .candidates.tsv)
+{pre}{evalline}
+{predictline}
 ```
 `matching_results.tsv` = submissions/NN_{attempt}.tsv; `candidate_pairs.tsv` = submissions/NN_{attempt}.candidates.tsv.
 The attempt's settings are in `attempts/{attempt}/train.py`; defaults in `src/er_model.py`.
@@ -88,7 +88,7 @@ for split in ("train", "test"):
 
 DOC = ROOT / "docs" / "Documentation_template.md"
 PLACEHOLDERS = ("[Your Team Name]", "[List all team members]", "[Date]", "[e.g.,", "[total]", "[]", "[brief description]", "[your best validation score]", "[Brief description", "[Blocking + Classifier", "*Provide a brief", "*Describe how", "*Key insights", "*Outline your", "*Summarize your", "*Include any", "*Your complete")
-SRC_FILES = ["common.py", "er.py", "er_dict.py", "er_norm.py", "er_block.py", "er_feat.py", "er_feat2.py", "er_feat3.py", "er_feat4.py", "er_model.py", "er_eval.py", "er_predict.py", "er_package.py"]
+SRC_FILES = ["common.py", "er.py", "er_dict.py", "er_norm.py", "er_block.py", "er_feat.py", "er_feat2.py", "er_feat3.py", "er_feat4.py", "er_feat5.py", "er_stage3.py", "er_model.py", "er_eval.py", "er_predict.py", "er_package.py"]
 
 
 def validate(mt, ct, cfg, test_dir):
@@ -155,7 +155,10 @@ def main():
                 if f.suffix in (".py", ".json") and not f.name.startswith("diag"):
                     zf.write(f, base + f"attempts/{dep}/{f.name}")
         pre = "".join(f"{c}\n" for c in getattr(mod, "PRE_STEPS", []))
-        zf.writestr(base + "README.md", README.format(attempt=attempt, pre=pre, frac=man.get("train_frac", getattr(mod, "TRAIN_FRAC", M.TRAIN_FRAC))))
+        frac = man.get("train_frac", getattr(mod, "TRAIN_FRAC", M.TRAIN_FRAC))
+        evalline = getattr(mod, "EVAL", f"python src/er_eval.py {attempt}                   # optional: 5-fold CV, macro F0.5")
+        predictline = getattr(mod, "PREDICT", f"python src/er_predict.py {attempt} --train-frac {frac}  # train on train, write submissions/NN_{attempt}.tsv (+ .candidates.tsv)")
+        zf.writestr(base + "README.md", README.format(attempt=attempt, pre=pre, evalline=evalline, predictline=predictline))
         zf.writestr(base + "requirements.txt", REQUIREMENTS)
         if a.final:
             zf.write(mt, "output/matching_results.tsv")
