@@ -33,8 +33,8 @@ def to_matrix(df, cols):
 
 
 def full_dataset(X, y, params=None):
-    """Bin all rows once (label-free feature quantiles); folds then train on zero-copy subsets."""
-    return lgb.Dataset(X, y, params=dict(params or PARAMS), free_raw_data=False).construct()
+    """Bin all rows once (label-free feature quantiles); folds then train on zero-copy subsets (free_raw_data=True: subsets never copy raw rows)."""
+    return lgb.Dataset(X, y, params=dict(params or PARAMS), free_raw_data=True).construct()
 
 
 def fit_subset(full, idx, params=None, rounds=None):
