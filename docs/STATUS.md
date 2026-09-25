@@ -1,5 +1,19 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## 26 Sep 05:00 IST: MORNING HANDOFF (uploads 7 and 8 built overnight)
+- **Recommended upload: 08_012_lexical** = 009 + char-3-gram retrieval route (010) + lexical correction (012).
+  File: submissions/matching_results.tsv (md5 6da271f4...), code zip submissions/08_012_lexical_code.zip; validator PASS on A (--check-ids).
+- Measured gains (paired, 5/5 folds):
+  - route vs 009: +0.00128 (10% sample, 220,678 S1; SE 0.00005);
+  - lexical vs 010: +0.00031 (full 2.2M train S1, nested cross-fitting; SE 0.00001).
+  Expected LB ~0.983-0.985 (derived from 009's 0.981).
+- Fallback: 07_010_route (archive; validator PASS).
+- Guard: US/India unchanged; France pairs per S1 3.215 (009) -> 3.237 (010) -> 3.232 (012), empty rate 6.0% -> 5.9%, house-conflict share unchanged.
+- Codex review (docs/research/codex_leads.md): nothing big left in the parallel line (its neural France pilot has no result). New lead: 'lifted' decoy-marker scores (subtract each country's base rate; France's test-derived table sits on a shifted scale) + a French house-number parser repair; LOCO +0.0086 (5/5, agent-measured, not yet re-verified), estimated +0.001-0.002 LB; needs a stage-3 retrain + rebuild of route/lexical on top (~2 h) and the human's approval.
+- Machines: A (on-demand) has everything; C (on-demand, idle); D (on-demand; France-lane jobs frozen); F (spot, idle); E and G were reclaimed (spot). Codex session's chain on A is still SIGSTOPped (resume: ssh amlc-a 'kill -CONT $(cat ~/codex_paused_pids.txt)').
+- Agents: France lane paused; Codex-review done.
+- Uploads: 26 Sep 1 of 5 used; 10 of 15 left overall.
+
 ## NIGHT PLAN 26 Sep 01:25 -> 06:00 IST (user asleep; wakes ~06:00 to upload)
 - Mac caffeinated 12 h. Orchestrator scratchpad/orch010.sh runs unattended (logs: scratchpad/orch010.log, /tmp/orch010_train.log).
 - Deliver by 06:00: upload 7 = 010_route (009 + retrieval route) as submissions/matching_results.tsv + code zip, validated (organiser validator on A), guard checked, plus the train-sample paired CV of the route (build/val010.py).
