@@ -1,0 +1,4 @@
+TRAIN_FRAC = 0.5
+EXTRA_FEATS = ["feat2"]
+EXCLUDE = ["a_ratio", "a_partial"]
+FLOOR = 0.6
