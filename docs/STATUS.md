@@ -1,11 +1,12 @@
 # Live status / handoff (update at every milestone)
 
-Last update: 2026-09-25 ~08:15 IST (003 CV fold 0 done in 581 s, ETA ~09:00; train_feat3 done on B; 004 CV queued on B after test_feat3)
+Last update: 2026-09-25 ~09:15 IST (003 significant; 003 predict on A; 004 CV on B fold 0 done 1149 s, peak 46.6 GB, ETA ~10:35; Astra gate 6 audit running -> docs/astra/06_audit.md)
 
 ## Scores
 | # | attempt | CV macro F0.5 | public LB | notes |
 |---|---|---|---|---|
 | sub-01 | 001_baseline (41 feats, train 20%) | 0.94292 +/- 0.00029 | 0.929 | commit 125b680; test norm without France fixes |
+| (sub-03 pending) | 003_trainfrac50 (002 trained on 50%) | 0.96109 +/- 0.00018 (paired +0.00059, SE 0.00004, 5/5) | - | predicting on A (~/predict_003.log, ~/PREDICT003_DONE) |
 | sub-02 | 002_namefreq (+feat2: name freq, conservative names, gated addr) | 0.96050 +/- 0.00021 | 0.949 | France-gated test normalization; implied France ~0.907 |
 Budget: 2/5 used on 25 Sep IST, 13/15 left. Log: submissions/log.csv, `python src/sub_status.py`.
 
