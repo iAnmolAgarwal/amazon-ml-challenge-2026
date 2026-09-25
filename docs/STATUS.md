@@ -1,12 +1,13 @@
 # Live status / handoff (update at every milestone)
 
-Last update: 2026-09-25 09:30 IST. B (spot) reclaimed 09:20 IST mid 004 CV (fold 2). 004 predict (train 100%) on A -> ~/predict_004.log, PREDICT004_DONE; A then auto-runs 004b_coherence50 CV (~/eval_004b.log, EVAL004B_DONE, ~10:30). Gate: 004b significant over 003 -> upload 004 (submission 4, human uploads from Mac). Replacement spot B launching in us-east-1d (scratchpad relaunch_b2.log). Next after sub-4: India native-script dictionary (docs/astra/06_audit.md #1, user approved to start after sub-4). Gate 7 compliance audit running -> docs/astra/07_audit.md (fixes need approval).
+Last update: 2026-09-25 10:30 IST. 004b PASSED (0.96351, +0.00242 over 003, 5/5) -> submission 4 = submissions/03_004_coherence_full.tsv + 03_004_coherence_full_code.zip (validated, strict PASS; user uploads ~10:50). Dictionary (commit c1b43a7, attempt 005_indic) rebuild: A runs train split (~/run_split.sh train; log ~/dict_pipeline_train.log; marker ~/DICT_TRAIN_DONE; old caches backed up in ~/aml/cache_v004). Test split: spot B relaunch in us-east-1f (scratchpad relaunch_b4.log) runs ~/run_split.sh test (marker ~/DICT_TEST_DONE); if B dies, run test on A after train. B reclaimed twice today (09:20, 10:20). IAM allows only r7a/m7a/g5/t3. Then: 005 CV at 50% on A (compare with 004b), predict --train-frac 1.0, validate, package -> submission 5 (~14:00-15:00). Phase 2: map 171 test-only native business words (91% precision rough transliteration; not yet adopted).
 
 ## Scores
 | # | attempt | CV macro F0.5 | public LB | notes |
 |---|---|---|---|---|
 | sub-01 | 001_baseline (41 feats, train 20%) | 0.94292 +/- 0.00029 | 0.929 | commit 125b680; test norm without France fixes |
-| (sub-03 pending) | 003_trainfrac50 (002 trained on 50%) | 0.96109 +/- 0.00018 (paired +0.00059, SE 0.00004, 5/5) | - | predicting on A (~/predict_003.log, ~/PREDICT003_DONE) |
+| (sub-4, pending upload) | 004_coherence_full (003 + feat3, train 100%) | gate 004b_coherence50 0.96351 (paired +0.00242 vs 003, 5/5) | - | submissions/03_004_coherence_full.* |
+| (not submitted) | 003_trainfrac50 (002 trained on 50%) | 0.96109 +/- 0.00018 (paired +0.00059, SE 0.00004, 5/5) | - | predicting on A (~/predict_003.log, ~/PREDICT003_DONE) |
 | sub-02 | 002_namefreq (+feat2: name freq, conservative names, gated addr) | 0.96050 +/- 0.00021 | 0.949 | France-gated test normalization; implied France ~0.907 |
 Budget: 2/5 used on 25 Sep IST, 13/15 left. Log: submissions/log.csv, `python src/sub_status.py`.
 
