@@ -1,5 +1,15 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## 25 Sep ~23:00 IST: submission 5 = 008_stage3 (uploaded by the human; score pending)
+- 008 = 006 + stage-3 correction (src/er_stage3.py) boosted from logit(p006) with 34 label-free pair features (src/er_feat5.py). Full CV **0.98254** (+0.00831 vs 006, SE 0.00002, 5/5; US +0.0084, India +0.0082); pair P 0.9966 R 0.9548; test guard clean (house conflict US 8.4% / India 17.0% / France 1.0%). Expected LB ~0.970-0.974. Commit 5cea04d.
+- Upload file: submissions/matching_results.tsv (md5 c674f878...). Archive: submissions/archive/05_008_stage3.* (validation + code zip being produced).
+- Next-build evidence (10% sample, same protocol): + label-free decoy markers and signed house delta (r9) = +0.01014 vs 006 (r9 add-on +0.0029, 5/5); gains grow under doubled decoys (+0.0125, r7).
+- A cohort experiment from the parallel line claims 0.985372 on s1_idx%128==6 (006 0.974773 there; our 008 0.982474 there) with a label-derived lexical residual + extra char-3-gram retrieval (~56 extra pairs/S1). An independent audit is running (report: docs/research/audit_0985.md).
+- Research agents r1-r9: PAUSED by the human (resume only when told); their jobs frozen (SIGSTOP) on A/D.
+- Compute: A (us-east-1, r7a.2xlarge, shared with the human's other session), C (us-west-2 on-demand r7a.2xlarge, 64 GB, ~/aml with sample + norm + some caches), D (us-east-2 on-demand r7a.xlarge, 32 GB). Guardrail now allows us-east-1/us-west-2/us-east-2 and r7a/m7a.xlarge (human-approved 25 Sep).
+- Rules update: candidate_pairs.tsv is reviewed for final ranking; smaller candidate sets per S1 rank higher.
+
+
 ## 25 Sep ~18:30 IST: RESEARCH PHASE, paused by the usage limit until ~21:30 IST
 - 9 research lanes ran on a shared 10% train sample. Reports: docs/research/r1..r9.md; each has a "Pending when resumed" section listing jobs and logs on A (~/aml/research/rN/).
 - Kit: ~/aml/rk/ on A (rk.py = exact 006 decision on the sample, 0 mismatches; run.sh = memory-capped queue; brief in the session scratchpad brief.md).
