@@ -21,11 +21,11 @@ ssh-keygen -R "$IP" >/dev/null 2>&1 || true
 echo "$ALIAS -> $IP ($IID)"
 for i in $(seq 1 30); do ssh -o ConnectTimeout=8 -o BatchMode=yes "$ALIAS" true 2>/dev/null && break; sleep 10; done
 ssh "$ALIAS" 'cloud-init status --wait >/dev/null 2>&1; mkdir -p ~/aml/cache/raw'
-rsync -az --exclude .venv --exclude cache --exclude data --exclude .git "$ROOT/" "$ALIAS":~/aml/
+rsync -az --exclude .venv --exclude cache --exclude data --exclude .git --exclude submissions "$ROOT/" "$ALIAS":~/aml/
 {
   echo 'set -e; cd ~/aml/cache/raw'
-  for f in $(aws s3 ls "s3://$BUCKET/raw/" | awk '{print $4}'); do
-    echo "[ -s $f ] || curl -sSf -o $f '$(aws s3 presign "s3://$BUCKET/raw/$f" --expires-in 1800)'"
+  for f in $(aws s3 ls --region us-east-1 "s3://$BUCKET/raw/" | awk '{print $4}'); do
+    echo "[ -s $f ] || curl -sSf -o $f '$(aws s3 presign --region us-east-1 "s3://$BUCKET/raw/$f" --expires-in 1800)'"
   done
 } | ssh "$ALIAS" bash -s
 ssh "$ALIAS" 'export PATH=$HOME/.local/bin:$PATH; cd ~/aml && [ -x .venv/bin/python ] || uv venv -q --python 3.12 .venv; uv pip install -q --python .venv/bin/python polars numpy scipy scikit-learn lightgbm rapidfuzz sparse_dot_topn==1.2.0 pyyaml psutil pyarrow && .venv/bin/python -c "import polars, lightgbm, sparse_dot_topn; print(\"env ok\")"; du -sh ~/aml/cache/raw'

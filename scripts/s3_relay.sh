@@ -7,8 +7,10 @@ set -euo pipefail
 SRC=$1; REL=$2; DST=$3
 export AWS_PROFILE=${AWS_PROFILE:-amlc} AWS_REGION=${AWS_REGION:-us-east-1}
 BUCKET=amlc-2026-c77a54ac
-KEY="relay/$(basename "$REL")"
-N=$(ssh "$SRC" "cd ~/aml && rm -rf /tmp/relay && mkdir -p /tmp/relay && split -b 1500M -d -a 3 '$REL' /tmp/relay/part. && ls /tmp/relay | wc -l")
+RID="$(date +%s)$$$RANDOM"
+KEY="relay/$RID/$(basename "$REL")"
+TMP="/tmp/relay_$RID"
+N=$(ssh "$SRC" "cd ~/aml && rm -rf $TMP && mkdir -p $TMP && split -b 1500M -d -a 3 '$REL' $TMP/part. && ls $TMP | wc -l")
 echo "$REL: $N part(s)"
 {
   echo 'set -e'
@@ -19,9 +21,9 @@ import sys, boto3
 print(boto3.client("s3", region_name="us-east-1").generate_presigned_url("put_object", Params={"Bucket": sys.argv[1], "Key": sys.argv[2]}, ExpiresIn=3600))
 EOF
 )
-    echo "curl -sSf -X PUT -T /tmp/relay/$p '$url'"
+    echo "curl -sSf -X PUT -T $TMP/$p '$url'"
   done
-  echo 'rm -rf /tmp/relay'
+  echo "rm -rf $TMP"
 } | ssh "$SRC" bash -s
 {
   echo "set -e; mkdir -p \"\$(dirname ~/aml/$REL)\"; : > ~/aml/$REL.tmp"
@@ -31,5 +33,5 @@ EOF
   done
   echo "mv ~/aml/$REL.tmp ~/aml/$REL; ls -la ~/aml/$REL"
 } | ssh "$DST" bash -s
-aws s3 rm "s3://$BUCKET/relay/" --recursive --only-show-errors
+aws s3 rm "s3://$BUCKET/relay/$RID/" --recursive --only-show-errors
 echo "relayed $REL from $SRC to $DST"
