@@ -81,6 +81,20 @@ def train_and_score(a, cfg, mod, get, cache, frac, t0):
     return pairs, keep, yv, cols
 
 
+def apply_veto(pairs, cache, veto):
+    """VETO = {country: [words]}: pairs of that country whose pool name has one of the words and the S1 name does not get p = 0."""
+    fold = lambda c: pl.col(c).fill_null("").str.normalize("NFKD").str.replace_all(r"\p{Mn}", "").str.to_lowercase().str.replace_all(r"[^\p{L}\p{N}]+", " ").str.strip_chars().str.split(" ")
+    s1 = pl.read_parquet(cache / "raw" / "test_source1.parquet", columns=["business_name", "country"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32), pl.col("country").str.to_lowercase())
+    pool = pl.concat([pl.read_parquet(cache / "raw" / f"test_source{i}.parquet", columns=["business_name"]) for i in (2, 3)]).with_row_index("pool_idx").with_columns(pl.col("pool_idx").cast(pl.UInt32))
+    for country, words in veto.items():
+        ids = s1.filter(pl.col("country") == country).select("s1_idx", ts=fold("business_name"))
+        cand = pairs.join(ids, on="s1_idx", how="inner").join(pool.select("pool_idx", tp=fold("business_name")), on="pool_idx", how="left")
+        hit = cand.filter(pl.any_horizontal([pl.col("tp").list.contains(w) & ~pl.col("ts").list.contains(w) for w in words])).select("s1_idx", "pool_idx")
+        pairs = pairs.join(hit.with_columns(v=pl.lit(True)), on=["s1_idx", "pool_idx"], how="left", maintain_order="left").with_columns(prob=pl.when(pl.col("v")).then(0.0).otherwise(pl.col("prob")).cast(pl.Float32)).drop("v")
+        print(f"veto {country}: {hit.height:,} pairs set to 0 ({', '.join(words)})", flush=True)
+    return pairs
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("attempt_id")
@@ -100,6 +114,9 @@ def main():
         print(f"re-deciding {len(pairs):,} test pairs from {a.from_probs} (no training)", flush=True)
     else:
         pairs, keep, yv, cols = train_and_score(a, cfg, mod, get, cache, frac, t0)
+    veto = getattr(mod, "VETO", None)
+    if veto:
+        pairs = apply_veto(pairs, cache, veto)
     band = getattr(mod, "CAND_BAND", None)
     if band:
         n0 = len(pairs)

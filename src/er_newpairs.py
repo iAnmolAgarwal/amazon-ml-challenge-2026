@@ -8,8 +8,9 @@ usage:
 The attempt sets OLD (attempt whose probabilities score the existing candidate graph), NEW_TAG and RET_TAG (per split:
 new candidate-file tag and retrieval-file tag), NEW_BASE + NEW_R5 (feature names, read from feat / feat2 / feat5 side-cars built on the new candidate file with
 the unchanged er_feat.py, er_feat2.py, er_feat5.py and --tag NEW_TAG), NEW_PARAMS, NEW_ROUNDS, NEW_FILTER, NEW_SAMPLE.
-- union: pairs retrieved by the name or the address view that are not existing candidates, in the candidate-file
-  format (word_sim = best retrieval similarity, key flags 0).
+- union: pairs retrieved by the name or the address view (or the attempt's VIEWS, e.g. keys / rtext from er_keys.py
+  and er_rtext.py) that are not existing candidates (nor OLD's pairs when EXCLUDE_OLD), in the candidate-file format
+  (word_sim = best retrieval similarity, key flags 0).
 - fit: trained on EXISTING train candidate pairs of a label-independent owner sample (s1_idx hash, NEW_SAMPLE of S1)
   with their gold labels; no probability, rank or graph input. Fold models exclude their fold's owners.
 - score: new pairs are scored by the classifier (train: the fold model that never saw the owner; test: the full
@@ -38,13 +39,17 @@ def sample_mask(col, frac):
 def union(cache, mod, split):
     t = time.time()
     views = []
-    for v in ("name", "address"):
+    for v in getattr(mod, "VIEWS", ("name", "address")):
         files = sorted((cache / "cand").glob(f"{split}_ret_{v}{mod.RET_TAG[split]}*.parquet"))
         assert files, f"no {split} {v} retrieval files"
         views.append(pl.concat([pl.read_parquet(f, columns=KEYS + ["similarity"]) for f in files]))
     e = pl.concat(views).group_by(KEYS).agg(pl.col("similarity").max().alias("word_sim"))
     old = pl.scan_parquet(cache / "cand" / f"{split}_cand.parquet").select(KEYS)
     new = e.lazy().join(old, on=KEYS, how="anti").collect()
+    if getattr(mod, "EXCLUDE_OLD", False):
+        oldname = mod.OLD if split == "train" else f"test_{mod.OLD}"
+        oldp = pl.scan_parquet(cache / "oof" / f"{oldname}.parquet").select(KEYS)
+        new = new.lazy().join(oldp, on=KEYS, how="anti").collect()
     s1c = pl.read_parquet(cache / "norm" / f"{split}_s1.parquet", columns=["country_n"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32))
     new = new.join(s1c, on="s1_idx", how="left").with_columns([pl.lit(0, pl.UInt8).alias(k) for k in KFLAGS]).with_columns(pl.col("word_sim").cast(pl.Float32))
     new = new.select(KEYS + ["word_sim"] + KFLAGS + ["country_n"]).sort(KEYS)
