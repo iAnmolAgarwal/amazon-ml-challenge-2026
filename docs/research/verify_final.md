@@ -11,7 +11,7 @@ Tags: **M** = measured by me on data, **D** = derived (arithmetic on measured nu
 | Folds | PASS | identical to original (hash) |
 | dict / norm / block (train+test) | PASS (counts) | 98,021,508 train pairs = original manifest |
 | 005n stage-1 OOF | PASS | 0.97005 vs 0.97008; oracle identical per S1 |
-| 005f / 006 stage 2 | pending | |
+| 005f / 006 stage 2 | PASS | 0.97425 vs 0.97423; oracle identical |
 | 016 band | pending | |
 | 017 route / 018 lexical | pending | |
 | 019 vs original upload-10 file | pending | |
@@ -85,3 +85,7 @@ Tags: **M** = measured by me on data, **D** = derived (arithmetic on measured nu
 - `cache/oof/test_005f_floor.parquet` was written before the crash (571 MB, 00:31 IST), so no retrain is needed.
 - Fix (lead applies on g1): `cd ~/aml && mkdir -p submissions/archive && touch logs/rebuild/s1_test.done && nohup scripts/rebuild_chain.sh main >> logs_main.txt 2>&1 &`. The mkdir also covers every later er_predict step. (Optional src hardening: `out.mkdir(parents=True, exist_ok=True)` in er_predict.py.)
 - 00:33 IST: submissions/archive created on g1, s1_test marked done, chain restarted (feat4_train running). RESOLVED.
+
+## 27 Sep 01:35 IST: 006 stage-2 OOF: PASS
+- Rebuilt CV **0.97425** vs original 0.97423 (+0.000023, per-fold SE 0.000019: noise) (M). India 0.97212 vs 0.97207, US 0.97568 vs 0.97567; pair P 0.99319 vs 0.99322, R 0.93999 vs 0.93991. Oracle identical for every S1; 97.96% of S1 have an identical F0.5.
+- s1_test (005f test probabilities, 100% train): 98,021,508 train pairs / 7,490,646 positives as in the original manifest; test file 78,924,662 rows = test_cand (M).

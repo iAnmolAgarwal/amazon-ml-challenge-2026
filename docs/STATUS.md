@@ -1,5 +1,17 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## 27 Sep 02:10 IST: FINAL-STACK MANIFEST (one upload; every layer must pass its check first)
+Rebuild on GCP (g1 main, g2 test side, g3/g4 extra; AWS suspended). Checks: automatic chain on g2 (logs/verify/verify.log), independent verifier (docs/research/verify_final.md).
+1. Rebuilt 018 pipeline (upload-10 equivalent): stage 1 CV 0.97005 (orig 0.97008) PASS; stage 2 0.97425 (orig 0.97423) PASS; band/route/lexical pending.
+2. 023_comb: er_gen (patched after r12 review) + er_pool + base band features; target vs 018 ~ +0.0014 (alarm < +0.0011).
+3. 024_keys: K9 keys + reverse text (er_rtext patched after r10 review); guard required; train-side owner check if time allows.
+4. 025 France pure-word veto (participations, holding, distribution, international).
+5. Meta-model over ours + second team pipeline (r18; dry run +0.00101 vs theirs alone, guard clean) or plain blend 026 as fallback.
+6. France recipe (r17; LOCO proxy favours ~0.5 blend of ours and theirs).
+7. Cross-encoder features: our e5-small (trained; scoring after 018 band), optional e5-base; second pipeline's e5 scores.
+8. Candidate cascade: smallest zero-loss set (research/check_cascade.py).
+Dropped: forward text retrieval (~10 h, +0.0001-0.0002), France T=2 (under-emission), 8B LLM (time). Route address retrieval split across g2/g3/g4 at 02:05 (India shards + US) -> ~04:00.
+
 ## 26 Sep 16:40 IST: AWS ACCOUNT SUSPENDED (identity verification); documents uploaded by the human, awaiting AWS
 - Symptoms from ~15:56 IST: amlc key InvalidClientTokenId, all machines unreachable. AWS notice: KYC documents required; resources subject to termination; closure 11 Oct if not verified.
 - Scores: upload 10 (018) 0.98393; upload 11 (020_gen, file 12) 0.985. Uploads left 8 of 15 (26 Sep: 3 of 5 used).
