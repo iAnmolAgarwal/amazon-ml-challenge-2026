@@ -2,10 +2,10 @@
 
 usage: python src/er_rtext.py --split train|test --parent <attempt> [--k 5] [--queries PATH] [--tag ""] [--threads 12]
 
-View = name_core + " | " + addr_norm. Per country, character 3-gram TF-IDF fitted on the split's pool records (terms in
+View = name_core + " | " + addr_norm. Character 3-gram TF-IDF fitted once on all of the split's pool records (terms in
 >= 2 records and <= 2% of them, sublinear tf, smoothed idf, L2 rows). Queries = pool records whose best probability
-under the parent attempt is <= 0.5 (records in no candidate pair count as 0); index = S1 of the same country (with
---queries, only those S1). The k best cosine matches per query are kept. Label-free.
+under the parent attempt is <= 0.5 (records in no candidate pair count as 0); index = all S1 of the same country (with
+--queries, only pairs whose S1 is listed are kept, after ranking). The k best cosine matches per query are kept. Label-free.
 Writes cache/cand/{split}_ret_rtext{tag}.parquet (s1_idx, pool_idx, similarity), read by er_newpairs.py union.
 """
 import argparse
@@ -39,15 +39,14 @@ def main():
     name = a.parent if a.split == "train" else f"test_{a.parent}"
     best = pl.read_parquet(cache / "oof" / f"{name}.parquet", columns=["pool_idx", "prob"]).group_by("pool_idx").agg(pl.col("prob").max())
     pool = pool.join(best.with_columns(pl.col("pool_idx").cast(pl.UInt32)), on="pool_idx", how="left").with_columns(pl.col("prob").fill_null(0.0))
-    if a.queries:
-        s1 = s1.join(pl.read_parquet(a.queries, columns=["s1_idx"]).with_columns(pl.col("s1_idx").cast(pl.UInt32)).unique(), on="s1_idx", how="semi")
+    q = pl.read_parquet(a.queries, columns=["s1_idx"]).with_columns(pl.col("s1_idx").cast(pl.UInt32)).unique() if a.queries else None
+    vec = TfidfVectorizer(analyzer="char", ngram_range=(3, 3), lowercase=False, min_df=2, max_df=0.02, sublinear_tf=True, smooth_idf=True, dtype=np.float32)
+    vec.fit(pool["v"].to_list())
     out = []
     for c in pool["country_n"].unique().to_list():
         pc, sc = pool.filter(pl.col("country_n") == c), s1.filter(pl.col("country_n") == c)
         if sc.height == 0:
             continue
-        vec = TfidfVectorizer(analyzer="char", ngram_range=(3, 3), lowercase=False, min_df=2, max_df=0.02, sublinear_tf=True, smooth_idf=True, dtype=np.float32)
-        vec.fit(pc["v"].to_list())
         qc = pc.filter(pl.col("prob") <= 0.5)
         S = vec.transform(sc["v"].to_list()).T.tocsr()
         sidx, qidx = sc["s1_idx"].to_numpy(), qc["pool_idx"].to_numpy()
@@ -56,7 +55,10 @@ def main():
             m = sp_matmul_topn(Q, S, top_n=a.k, threshold=0.0, sort=False, n_threads=a.threads).tocoo()
             out.append(pl.DataFrame({"s1_idx": sidx[m.col].astype(np.uint32), "pool_idx": qidx[s + m.row].astype(np.uint32), "similarity": m.data.astype(np.float32)}))
         print(f"{c}: {qc.height:,} unclaimed pool queries against {sc.height:,} S1, {time.time() - t:.0f}s", flush=True)
-    res = pl.concat(out).sort(KEYS)
+    res = pl.concat(out)
+    if q is not None:
+        res = res.join(q, on="s1_idx", how="semi")
+    res = res.sort(KEYS)
     path = cache / "cand" / f"{a.split}_ret_rtext{a.tag}.parquet"
     res.write_parquet(path)
     print(f"wrote {path.name}: {res.height:,} pairs, {time.time() - t:.0f}s")
