@@ -1,5 +1,14 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## 26 Sep 16:40 IST: AWS ACCOUNT SUSPENDED (identity verification); documents uploaded by the human, awaiting AWS
+- Symptoms from ~15:56 IST: amlc key InvalidClientTokenId, all machines unreachable. AWS notice: KYC documents required; resources subject to termination; closure 11 Oct if not verified.
+- Scores: upload 10 (018) 0.98393; upload 11 (020_gen, file 12) 0.985. Uploads left 8 of 15 (26 Sep: 3 of 5 used).
+- READY BUT STRANDED ON A: upload 12 = 021_comb (018 + generator features gf1-6 + base band features + pool-side competition features, 255 leaves, 800 rounds, boosted from logit p018, band 0.003-0.997): full CV 0.98758; paired vs 018 +0.00140 (5/5), vs 020_gen +0.00058 (5/5), re-verified with build/paired_full.py; guard clean (France identical); validator PASS; A:~/aml_stage/submissions/archive/13_021_comb.tsv (sha 802685c7...). submissions/matching_results.tsv on the Mac is still upload 11: do not re-upload it.
+- AT RISK: r12 code (A:~/aml/research/r12/*.py: gf.py..gf6.py, gen_step.py, pf.py, pf2.py, comb) and r11 code (C:~/aml/research/r11/, copy of t_final.py on A:~/aml/research/r11x/) are not in git; 020/021 cannot be packaged without them.
+- On recovery: scratchpad/recover.sh (read-only check, prints start commands for approval), then `recover.sh pull` (fix SSH IPs, pull r11/r12 code into research/, pull 13_021_comb) -> port gen features into src, package 021, commit; resume r12 + a blocking-miss lane (max 4 agents; 2 while usage is tight).
+- Final-day plan (27 Sep, 5 uploads): upload 12 at the first slot; later uploads only for re-verified gains; choose the final package by ~20:00 IST from the best verified build whose code is in src (fallback 019_band = upload 10 code, fully in git); `er_package.py --final --team "Apprentice"`; docs/Documentation_template.md is filled (update the final LB row).
+- If AWS is not back by 27 Sep ~12:00 IST: fallback final = 019_band (LB 0.98393, fully reproducible), or rewrite the generator features from r12.md on a teammate's account.
+
 ## 26 Sep 07:45 IST: upload 10 = 018 in submissions/ (direct paired vs 012: +0.00077, 5/5); code ported (caa614e); final-package form 019_band
 - submissions/matching_results.tsv = 10_018_lexical (sha efdafee0..., validator PASS) + 10_018_lexical_code.zip. Upload 8 stays in archive.
 - Re-verification of 018: route over 016 +0.00126 (sample, 5/5); lexical over 017 +0.00016 (full nested, 5/5); 018 vs 012 +0.00077 (full, 5/5). Full-graph CV 0.98618 (US 0.98695, India 0.98502; route pairs only on the 10% sample owners).

@@ -1,73 +1,80 @@
 # ML Challenge 2026: Business Entity Resolution Solution Template
 
-**Team Name:** [Your Team Name]  
-**Team Members:** [List all team members]  
-**Submission Date:** [Date]
+**Team Name:** Apprentice  
+**Team Members:** Anmol Agarwal (team leader), Akshit Kumar Singh, Nitya Arora, Harsimran Singh  
+**Submission Date:** 27 September 2026
 
 ---
 
 ## 1. Executive Summary
-*Provide a brief 2-3 sentence overview of your approach and key innovations.*
+A multi-stage blocking + gradient-boosting pipeline built around the data generator's noise and decoy operators. Candidates come from word TF-IDF, exact keys and character 3-gram retrieval. LightGBM models then score pairs with label-free features that separate true-match noise (typos, truncated digits, fillers, aliases) from decoys (shifted house numbers, inserted words, swapped legal forms), and an expected-F0.5 decision rule turns the probabilities into per-entity answers. The key innovations are label-free "decoy-marker" statistics learned from the candidate graph itself (which transfer to France, a country with no training labels) and pair-local generator-operator features in a final correction model.
 
 ---
 
 ## 2. Methodology
 
 ### 2.1 Problem Analysis
-*Key insights discovered during EDA — noise patterns, address variations, missing fields, etc.*
+- Each Source-1 record matches 0 to many pool records (sources 2/3), and each pool record has at most one owner, never across countries. Train: 2.21M S1, 10.3M pool records, 3.46 matches per S1. Test: 1.73M S1, India 47%, US 38%, **France 15% with no training labels**.
+- True-match noise: typos inside tokens, truncated digits (1995 vs 995), added fillers (center, services, the, inc), alias markers (aka, fka, dba, formerly), website forms, token reorder and splits, acronyms, native-script (Indic) names, addresses that drop numbers, gain state names or codes, or become "None".
+- Unmatched pool records ("decoys") are near-copies of real businesses: house number shifted by +1, 2, 3, 4, 5, 7, 9, 11, 13 or 21; one name word inserted from a per-country list; a swapped legal form; a changed unit number.
+- Test has about 1.9x the decoy density of train, and decoys come in clusters that share one perturbed house number. So any feature that looks at an S1's other candidates (coherence, sibling agreement) wins in CV and emits decoys on test; we measured this three times and banned such features. Every feature compares one pool record with its own S1; competition features only ask how strongly other S1 claim the same pool record.
 
 ### 2.2 Solution Strategy
-*Outline your high-level approach.*
+**Approach Type:** Blocking + Classifier (multi-stage LightGBM with a retrieval route and residual corrections)  
+**Core Innovation:** label-free decoy-marker scores and generator-operator features that model how the synthetic noise was produced, with a country-level scale correction so the same features work on the unlabelled country.
 
-**Approach Type:** [Blocking + Classifier / End-to-End / Graph-Based / Hybrid, etc]  
-**Core Innovation:** [Brief description of your main technical contribution]
+Validation: 5-fold CV over S1 (stratified by country and match count), every stacked input out-of-fold, and a change is kept only if it gains more than 2 standard errors and in at least 4 of 5 folds; before any upload, a label-free test guard compares emitted pairs per S1, empty-answer rate and house-conflict share per country.
 
 ---
 
 ## 3. Candidate Generation (Blocking)
-*Describe how you reduced the comparison space to a manageable candidate set.*
-
-- **Blocking keys used:** [e.g., PIN code, phonetic name encoding, TF-IDF, etc.]
-- **Candidate pairs generated:** [total]
-- **How you ensured true matches were not lost:**
+- **Blocking keys used:** per country, word TF-IDF (hashed name + address 1-2 grams) top-40 neighbours; exact keys on house + street, space-free name, sorted space-free name, name + house, initials + house (acronyms) and alternate ("formerly") name, skipping oversized key blocks; plus a character 3-gram TF-IDF retrieval route (top 40 per view over core name and normalized address) whose new pairs are scored by a separate classifier and kept at p > 0.001. Normalization first maps native-script tokens to Latin with a dictionary learned from training pairs.
+- **Candidate pairs generated:** about 98M train and 80.5M test pairs before filtering (about 46 per S1); the final model's band, written as candidate_pairs.tsv, is 12.6M test pairs (7.25 per S1).
+- **How you ensured true matches were not lost:** the candidate union holds 98.1% of all true train pairs (oracle macro F0.5 0.994). Oversized key blocks are skipped rather than truncated by row order. The character route adds matches that word retrieval misses. The final candidate band (stage-2 probability >= 0.001 plus route pairs) keeps 99.99% of the true pairs that the full set contains, and the decisions are identical to deciding on the full set.
 
 ---
 
 ## 4. Matching Model
 
 **Features used:**
-- Name features: [e.g., Jaccard, Levenshtein, phonetic encoding]
-- Address features: [e.g., token overlap, edit distance, PIN code matching]
-- Other: []
+- Name features: fuzzy ratio / token-set / token-sort / partial / Jaro-Winkler on several name views (core, website-free, space-free, sorted, initials, alternate name, conservative raw form); IDF-weighted shared and one-sided name-token mass and weighted cosine; character 3-gram cosine; label-free name-frequency counts; legal-form relations; decoy-marker scores for added, dropped and swapped words ((n_d + 1)/(n_d + n_0 + 10), counted over candidate pairs with a decoy house shift versus equal houses, lifted per country); name edit operations (typo position, doubled letters, confusable characters, acronyms, prefix drops, reorder / join / split, fillers, honorifics, alias and web markers).
+- Address features: token-set and partial scores; IDF-weighted address-token mass; house, street, postal and unit equality or conflict; house relations (suffix / dropped leading digits, log difference, near difference on the same street, digit reorder, house among the other side's numbers, signed shift and membership in the decoy shift set); number-multiset operation codes; a French house-number fallback parser.
+- Other: graph ranks and gaps from both sides of the candidate set; stage-2 competition features from out-of-fold probabilities (pair rank and margin among the S1 that claim the same pool record, and among the S1's own candidates); cross-fitted lexical likelihoods of added / dropped words and character edits (42 features).
 
-**Model type:** [e.g., XGBoost, Siamese Network, Transformer, etc.]  
-**Threshold selection method:** [e.g., F_0.5 optimization on validation set]
+**Model type:** LightGBM throughout: stage 1 (127 leaves, 600 rounds), stage 2 with competition features, a band model on pairs with stage-2 p >= 0.001 using every feature family, the retrieval-route classifier, a lexical correction and a final correction boosted from the previous probability (255 leaves, 800 rounds) using generator-operator features and pool-side competition features.  
+**Threshold selection method:** expected-F0.5 decision per S1: each pool record goes to its highest-probability S1; per S1 the prefix k maximizing 5·Σp(top k)/(Σp + 4k) is kept unless the probability of no match is larger; then pairs with p <= 0.6 are dropped (floor tuned by paired CV).
 
 ---
 
 ## 5. Results & Error Analysis
 
-- **F_0.5 Score (macro):** [your best validation score]
-- **Common false positives (wrong merges):** [brief description]
-- **Common false negatives (missed matches):** [brief description]
+- **F_0.5 Score (macro):** 5-fold CV on all 2.2M train S1: 0.98758 (US 0.98819, India 0.98667). Public leaderboard 0.985 [update with the final upload].
+- **Common false positives (wrong merges):** decoys that keep the name and address but shift the house number by a small typical step, or insert a generic business word; legal-form swaps; unit-number changes on the same building. The final model cut CV false-positive pairs from 12,352 to 7,578.
+- **Common false negatives (missed matches):** pairs never retrieved by blocking (the largest remaining source); true pool records claimed by another S1 with a near-identical name; S1 with an empty or "None" address whose name is shared by other S1 (no distinguishing evidence); records with one true match, which score lowest.
 
 ---
 
 ## 6. Conclusion
-*Summarize your approach, key achievements, and lessons learned in 2-3 sentences.*
+Modelling the generator, rather than generic string similarity, drove most of the gains: decoy-marker and generator-operator features lifted CV from 0.974 to 0.988 and the leaderboard from 0.963 to 0.985. The most important lesson was to validate every idea against the test's higher decoy density with a label-free guard, since features that exploit an entity's other candidates look excellent in CV and fail on test.
 
 ---
 
 ## Appendix
 
 ### A. Code Artefacts
-*Your complete, runnable code ships in the submission zip under
-`code/business_entity_resolution/` (all source in `src/`, with a `README.md` and
-`requirements.txt`). Summarise its structure and the entry point(s) to reproduce
-`output/matching_results.tsv` and `output/candidate_pairs.tsv` here.*
+`code/business_entity_resolution/` contains `src/` (all pipeline modules), `attempts/` (the settings of every stage used, one folder per stage), `config.yaml`, `README.md` and `requirements.txt`. The README lists every command in order, from converting the organisers' TSVs to parquet through normalization, blocking, pair features, the stage models, the retrieval route, the lexical and final corrections, to the prediction step that writes `output/matching_results.tsv` and `output/candidate_pairs.tsv`. Tested on an 8-core, 64 GB Linux machine with Python 3.12.
 
 ### B. Additional Results
-*Include any additional charts, graphs, or detailed results.*
+| Stage | 5-fold CV macro F0.5 | Public LB |
+|---|---|---|
+| Blocking + one LightGBM | 0.943 | 0.929 |
+| + name frequency, conservative names | 0.961 | 0.949 |
+| + native-script dictionary, floor, competition features | 0.974 | 0.963 |
+| + pair features (specificity, house relations, legal form) | 0.983 | 0.974 |
+| + decoy-marker name features | 0.985 | 0.981 |
+| + band model, country lift, French parser, character retrieval, lexical correction | 0.986 | 0.98393 |
+| + generator-operator correction | 0.987 | 0.985 |
+| + pool-side competition features in the final correction | 0.98758 | [final] |
 
 ---
 
