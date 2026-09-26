@@ -11,7 +11,7 @@ PRE_STEPS = [
     "python src/er_feat4.py --split train --src 005n_indic_nocoh  # competition features (train)",
     "python src/er_feat4.py --split test --src 005f_floor         # competition features (test)",
     "python src/er_eval.py 006_stage2                   # stage 2: out-of-fold probabilities",
-    "python src/er_predict.py 006_stage2                # stage 2: test probabilities",
+    "python src/er_predict.py 006_stage2 --train-frac 1.0  # stage 2: test probabilities",
     "python src/er_feat5.py --split train && python src/er_feat5.py --split test   # pair features",
     "python src/er_feat6.py --split train && python src/er_feat6.py --split test   # name-operator features",
     "python src/er_lift.py                              # country-lifted marker scores (feat6l), French house repair (feat5p)",

@@ -1,8 +1,8 @@
 """Extra candidate retrieval: character 3-gram TF-IDF nearest neighbours of each S1 in the pool of its country.
 
-usage: python src/er_retrieve.py --split train|test --view name|address [--country C] [--shard i/n] [--queries PATH] [--k 40] [--tag ""]
+usage: python src/er_retrieve.py --split train|test --view name|address|text [--country C] [--shard i/n] [--queries PATH] [--k 40] [--tag ""]
 
-For one view (name = name_core, address = addr_norm) the vectorizer is fitted on all pool records of the split:
+For one view (name = name_core, address = addr_norm, text = name_core + " | " + addr_norm) the vectorizer is fitted on all pool records of the split:
 character 3-grams (no lowercasing, the views are normalized already), terms kept if they occur in >= 2 pool records,
 sublinear tf 1 + ln(tf), smoothed idf ln((n + 1) / (df + 1)) + 1, rows L2-normalized, float32. Each S1 (all S1 of the
 split, or the s1_idx listed in --queries) is matched against the pool records of its own country only; the k best
@@ -25,7 +25,7 @@ from sparse_dot_topn import sp_matmul_topn
 
 from common import load_config
 
-VIEW = {"name": "name_core", "address": "addr_norm"}
+VIEW = {"name": "name_core", "address": "addr_norm", "text": "text"}
 BATCH = 20_000
 BLOCK = 125_000
 
@@ -52,8 +52,10 @@ def main():
     th = int(os.environ.get("RK_THREADS", os.cpu_count() or 4))
     col = VIEW[a.view]
     t = time.time()
-    pool = pl.read_parquet(cache / "norm" / f"{a.split}_pool.parquet", columns=["country_n", col]).with_row_index("pool_idx").with_columns(pl.col(col).fill_null(""))
-    s1 = pl.read_parquet(cache / "norm" / f"{a.split}_s1.parquet", columns=["country_n", col]).with_row_index("s1_idx").with_columns(pl.col(col).fill_null(""))
+    load = lambda side: (pl.read_parquet(cache / "norm" / f"{a.split}_{side}.parquet", columns=["country_n", "name_core", "addr_norm"]).with_columns(text=pl.col("name_core").fill_null("") + " | " + pl.col("addr_norm").fill_null("")).select("country_n", "text")
+                         if col == "text" else pl.read_parquet(cache / "norm" / f"{a.split}_{side}.parquet", columns=["country_n", col]))
+    pool = load("pool").with_row_index("pool_idx").with_columns(pl.col(col).fill_null(""))
+    s1 = load("s1").with_row_index("s1_idx").with_columns(pl.col(col).fill_null(""))
     if a.country:
         s1 = s1.filter(pl.col("country_n") == a.country)
     if a.shard:

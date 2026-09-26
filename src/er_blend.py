@@ -4,7 +4,7 @@ both candidate sets.
 usage: python src/er_blend.py <attempt_id> [--grid]
 
 The attempt sets OURS (our attempt: cache/oof/<OURS>.parquet train OOF; test_<OURS_TEST or OURS>.parquet test), EXT_DIR (folder with
-p_train_{India,US}.parquet: a_id, r_id, q = out-of-fold score; p_test_{France,India,US}.parquet: a_id, r_id, p) and the
+p_train_{India,US}.parquet: a_id, r_id, q = out-of-fold score, p2 (train is cut to their test cascade: p2 > 0.02, top 10 per S1); p_test_{France,India,US}.parquet: a_id, r_id, p) and the
 blend parameters W (weight of our logit), FILL_EXT (their probability for pairs they do not list), FILL_OURS (our
 probability for pairs we do not list) and FRANCE ("blend" or "ours").
 p = sigmoid(W * logit(ours) + (1 - W) * logit(theirs)), with the fill values for one-sided pairs.
@@ -33,7 +33,11 @@ def ids(cache, split):
 
 
 def theirs(ext, split, countries, s, p, col):
-    d = pl.concat([pl.read_parquet(ext / f"p_{split}_{c}.parquet", columns=["a_id", "r_id", col]) for c in countries]).rename({col: "pt"})
+    cols = ["a_id", "r_id", col] + (["p2"] if split == "train" else [])
+    d = pl.concat([pl.read_parquet(ext / f"p_{split}_{c}.parquet", columns=cols) for c in countries])
+    if split == "train":
+        d = d.filter(pl.col("p2") > 0.02).sort(["a_id", "p2"], descending=[False, True]).with_columns(r=pl.int_range(pl.len()).over("a_id")).filter(pl.col("r") < 10).drop("r", "p2")
+    d = d.rename({col: "pt"})
     d = d.join(s.select("a_id", "s1_idx"), on="a_id", how="inner").join(p, on="r_id", how="inner")
     return d.select(KEYS + [pl.col("pt").cast(pl.Float32)])
 

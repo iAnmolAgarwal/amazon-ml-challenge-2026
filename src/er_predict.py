@@ -144,7 +144,7 @@ def main():
     assert pred.join(pairs, on=["s1_idx", "pool_idx"], how="anti").is_empty(), "a match is not a scored candidate"
     c = name(pairs.select("s1_idx", "pool_idx").sort("s1_idx", "pool_idx")).group_by("entity_id", maintain_order=True).agg(pl.col("pid").alias("ids"))
     out = ROOT / "submissions" / "archive"
-    out.mkdir(exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
     n = next_n(out)
     mp, cp = out / f"{n:02d}_{a.attempt_id}.tsv", out / f"{n:02d}_{a.attempt_id}.candidates.tsv"
     ids = ts1["entity_id"].to_list()
