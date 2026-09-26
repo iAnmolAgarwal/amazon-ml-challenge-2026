@@ -2,7 +2,7 @@
 
 Only the team leader uploads. This file is updated after every scored upload, so check it before starting new work. The same content is shared as the team handoff document.
 
-As of 26 Sep 2026, 10:05 IST. Deadline: 27 Sep 23:59 IST. Uploads left: 8-9 of 15 overall (5 per day; the portal appears to count a rolling 24 h window including the failed attempt, and the organisers have been asked).
+As of 26 Sep 2026, 11:30 IST. Deadline: 27 Sep 23:59 IST. Uploads left: 7-8 of 15 overall (5 per day; the portal appears to count a rolling 24 h window including the failed attempt, and the organisers have been asked).
 Numbers are labelled **measured** (computed on data), **derived** (arithmetic on measured numbers) or **guessed**.
 
 ## 1. Where we are
@@ -14,7 +14,8 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 | 4 `006_stage2` | native-script dictionary, 0.6 floor, stage-2 competition features | 0.97423 | 0.963 |
 | 5 `008_stage3` | + stage-3 correction with 34 label-free pair features | 0.98254 (India 0.98029, US 0.98403) | 0.974 |
 | 6 `009_stage3m` | + 5 label-free decoy-marker name features (`er_feat6.py`) | 0.98498 (India 0.98361, US 0.98589) | 0.981 |
-| **10 `018_lexical`** | **band stage 2 with every feature set (016) + country-lifted markers and French house parser (`er_lift.py`) + char-3-gram retrieval route (`er_retrieve.py`, `er_newpairs.py`) + lexical correction (`er_lexical.py`)** | **0.98618** (India 0.98502, US 0.98695)* | **0.98393** |
+| 10 `018_lexical` | band stage 2 with every feature set (016) + country-lifted markers and French house parser (`er_lift.py`) + char-3-gram retrieval route (`er_retrieve.py`, `er_newpairs.py`) + lexical correction (`er_lexical.py`) | 0.98618 (India 0.98502, US 0.98695)* | 0.98393 |
+| **11 `020_gen`** | **+ generator-operator residual for US/India: number operation codes, name edit operations, confusable characters, legal-form ids, reorder/join, fillers, honorifics, alias and web markers, address-word differences** | **0.98700** (India 0.98601, US 0.98766)* | **0.985** |
 
 *Full-graph CV with retrieval-route pairs on the 10% sample owners only; the route adds +0.00126 on those owners, so full-route CV is about 0.9873 (derived).
 
@@ -28,7 +29,8 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 
 | | |
 |---|---|
-| Submission | #10, uploaded 26 Sep 2026, ~09:55 IST (git tag `sub-10`) |
+| Submission | #11 (file 12_020_gen), uploaded 26 Sep 2026, ~11:15 IST; public LB **0.985**. Attempt `attempts/020_gen` = 018 + a residual LightGBM (127 leaves, 400 rounds, lr 0.05, min data 300, L2 10, boosted from logit p018) on US/India pairs with 0.003 <= p018 <= 0.997, using pair-local generator-operator features; full CV 0.98700, paired vs 018 +0.00082 (SE 0.00001, 5/5; US +0.00071, India +0.00099), re-verified independently; test guard clean (France unchanged); validator PASS; matching sha256 `5b44d976052bdfdd9fc88419e685dd4926caae47a43c3d7f9bde7e20fb90c4ca`, md5 `d32fe6d63f639e26e1098296a9a7ab2a`. Previous record (#10) below. |
+| Submission #10 | uploaded 26 Sep 2026, ~09:55 IST (git tag `sub-10`) |
 | Attempt | `attempts/018_lexical` (chain 016_stage2b → 017_route → 018_lexical); code commits `caa614e`, `0c0760a` |
 | CV | 0.98618 full graph; paired vs 012 (009 + route + lexical): +0.00077, SE 0.00002, 5/5 folds (US +0.0007, India +0.0008); 016 vs 009 +0.00092 (5/5); route over 016 +0.00126 (sample, 5/5); lexical over 017 +0.00016 (full, nested, 5/5) |
 | Public LB | **0.98393** (+0.003 vs 009) |
@@ -44,7 +46,8 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 | 4 | 25 Sep 15:22 | 006_stage2 | 0.97423 | 0.963 |
 | 5 | 25 Sep 23:00 | 008_stage3 | 0.98254 | 0.974 |
 | 6 | 26 Sep 01:30 | 009_stage3m | 0.98498 | 0.981 |
-| **7** | **26 Sep ~09:55** | **018_lexical** (file 10) | **0.98618** | **0.98393** |
+| 7 | 26 Sep ~09:55 | 018_lexical (file 10) | 0.98618 | 0.98393 |
+| **8** | **26 Sep ~11:15** | **020_gen** (file 12) | **0.98700** | **0.985** |
 
 ## 2. What the data generator does (the key insight)
 
