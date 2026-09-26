@@ -1,5 +1,9 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## 26 Sep 05:45 IST: upload-10 chain running on A (~/aml/build/chain_16.sh, log chain_16.log)
+- 016_stage2b = full-integration via the band: staging er_stage3 with INIT=False, USE_LOGIT=False, FEATS3 feat+feat2+feat4+feat5p+feat6l (EXCLUDE3 a_ratio, a_partial), 127 leaves, 600 rounds, band p006 >= 0.001 (12.9M train pairs). Staging er_stage3.py patched (backup er_stage3.py.bak). Then 017_route (OLD 016) and 018_lexical (SRC 017) -> 10_018_lexical.tsv; paired_full vs 009 and vs 013; guard vs 015.
+- If 016 beats 013 (paired, full train) and the guard is clean, upload 10 = 018 (needs src approval together with upload 9's lift/parser code).
+
 ## 26 Sep 05:55 IST: full-integration measurement (next build candidate)
 - 10% sample, in-sample stage 2 retrained with BASE_FEATS + r5 32 + r9 (hd, hd_D, nA, nB, dm_*): 0.98502 vs pb 0.98373 (+0.01129, 5/5); vs the stage-3 route p59 (0.98457): +0.00045 (SE 0.00003, 5/5) despite 5x less training data. Expected full-data gain over the stage-3 approach ~+0.0005-0.001 (derived). Needs the join-free loader (scratchpad loader_draft.py) + stage-1/2 rebuild ~3-4 h. Script: C ~/aml/rk/integ.py, log ~/aml/research/v/integ.log.
 
