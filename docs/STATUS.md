@@ -1,5 +1,10 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## 26 Sep 06:30 IST: 016_stage2b VERIFIED BEST CV 0.98589 (+0.00092 vs 009, SE 0.00002, 5/5; US +0.0008, India +0.0011)
+- Upload 10 candidate = 10_018_lexical (016 + route 017 + lexical 018) built on A (staging); guard vs 015 clean (France conflict 1.08% -> 0.99%).
+- Re-verification running (~/aml/build/chain_v10.sh, log chain_v10.log): validator; route gain over 016 on the sample owners (val017.py); lexical --cv on 017 + paired_full 017 vs 018.
+- Needs the human's approval for src: er_stage3 INIT/USE_LOGIT/EXCLUDE3 options (staging patch; backup er_stage3.py.bak), lift + French parser step (build/lift_parser.py), attempts 013-018.
+
 ## 26 Sep 05:45 IST: upload-10 chain running on A (~/aml/build/chain_16.sh, log chain_16.log)
 - 016_stage2b = full-integration via the band: staging er_stage3 with INIT=False, USE_LOGIT=False, FEATS3 feat+feat2+feat4+feat5p+feat6l (EXCLUDE3 a_ratio, a_partial), 127 leaves, 600 rounds, band p006 >= 0.001 (12.9M train pairs). Staging er_stage3.py patched (backup er_stage3.py.bak). Then 017_route (OLD 016) and 018_lexical (SRC 017) -> 10_018_lexical.tsv; paired_full vs 009 and vs 013; guard vs 015.
 - If 016 beats 013 (paired, full train) and the guard is clean, upload 10 = 018 (needs src approval together with upload 9's lift/parser code).
