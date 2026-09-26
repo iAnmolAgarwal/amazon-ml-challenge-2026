@@ -1,5 +1,8 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## 26 Sep 05:55 IST: full-integration measurement (next build candidate)
+- 10% sample, in-sample stage 2 retrained with BASE_FEATS + r5 32 + r9 (hd, hd_D, nA, nB, dm_*): 0.98502 vs pb 0.98373 (+0.01129, 5/5); vs the stage-3 route p59 (0.98457): +0.00045 (SE 0.00003, 5/5) despite 5x less training data. Expected full-data gain over the stage-3 approach ~+0.0005-0.001 (derived). Needs the join-free loader (scratchpad loader_draft.py) + stage-1/2 rebuild ~3-4 h. Script: C ~/aml/rk/integ.py, log ~/aml/research/v/integ.log.
+
 ## 26 Sep 05:30 IST: upload 9 READY (pending the human's approval of src changes)
 - 09_015_lexical = upload 8 + France-only fixes: lifted decoy-marker scores (feat6l) + repaired French house parser (test_feat5p), stage 3 retrained (013), route (014) and lexical (015) rebuilt on top.
 - In-country CV 013 vs 009: +0.00001 (SE 0.00001, 3/5): neutral, as intended. Guard 8 -> 9: France pairs/S1 3.232 -> 3.275, empty 5.95% -> 5.81%, conflict 1.06% -> 1.08%; US/India unchanged. Validator PASS; files in submissions/archive/09_015_lexical.* (tsv sha 0215707d...).
