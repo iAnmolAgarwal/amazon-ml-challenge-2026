@@ -1,0 +1,15 @@
+FLOOR = 0.6
+CAND_BAND = None
+OURS = "023_comb"
+OURS_TEST = "024_keys"
+EXT_DIR = "cache/ext"
+W = 0.5
+FILL_EXT = 0.0005
+FILL_OURS = 0.005
+FRANCE = "ours"
+GRID_W = [0.4, 0.5, 0.6, 0.7]
+GRID_FILL_EXT = [0.0005, 0.002]
+GRID_FILL_OURS = [0.005, 0.02]
+VETO = {"france": ["participations", "holding", "distribution", "international"]}
+DEPENDS = ["024_keys", "023_comb", "018_lexical", "017_route", "016_stage2b", "006_stage2", "005n_indic_nocoh", "005f_floor"]
+PREDICT = "python src/er_predict.py 026_blend --from-probs 026_blend"
