@@ -1,5 +1,13 @@
 # Live status / handoff (READ FIRST after any compaction)
 
+## 26 Sep 07:45 IST: upload 10 = 018 in submissions/ (direct paired vs 012: +0.00077, 5/5); code ported (caa614e); final-package form 019_band
+- submissions/matching_results.tsv = 10_018_lexical (sha efdafee0..., validator PASS) + 10_018_lexical_code.zip. Upload 8 stays in archive.
+- Re-verification of 018: route over 016 +0.00126 (sample, 5/5); lexical over 017 +0.00016 (full nested, 5/5); 018 vs 012 +0.00077 (full, 5/5). Full-graph CV 0.98618 (US 0.98695, India 0.98502; route pairs only on the 10% sample owners).
+- src: er_lift.py (feat6l + feat5p, byte-identical to the staging outputs), er_stage3 INIT/USE_LOGIT/EXCLUDE3, er_predict CAND_BAND; attempts 013-019. The human gave standing approval for src edits (26 Sep).
+- 019_band = 018 decided on the band (006 p >= 0.001 + route pairs): candidates 7.25/S1 instead of 46.49 (train 5.93 vs 44.48), CV equal (0.986181, 1 S1 differs), test matches identical (sha efdafee0...), validator PASS. Files: submissions/archive/11_019_band.* (+ code zip). Use 019 for the final package (--final).
+- France lane (r3, done): no France-only change to ship on 018 (mass excess only +0.014; lexical stays on for France: LOCO +0.0037 mean). Lead: France gray zone = same-address name changes with French vocabulary; untestable without French labels.
+- Running: r10 recall/retrieval (F, C), r11 final model/decision (C), r12 US/India breakthrough (A, D). Disk: Mac 19 GB free after approved cleanup; A ~9.6 GB free (A safe set NOT approved).
+
 ## 26 Sep 06:30 IST: 016_stage2b VERIFIED BEST CV 0.98589 (+0.00092 vs 009, SE 0.00002, 5/5; US +0.0008, India +0.0011)
 - Upload 10 candidate = 10_018_lexical (016 + route 017 + lexical 018) built on A (staging); guard vs 015 clean (France conflict 1.08% -> 0.99%).
 - Re-verification running (~/aml/build/chain_v10.sh, log chain_v10.log): validator; route gain over 016 on the sample owners (val017.py); lexical --cv on 017 + paired_full 017 vs 018.

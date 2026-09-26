@@ -5,6 +5,8 @@ usage: python src/er_predict.py <attempt_id> [--tag ""] [--train-frac F]   (defa
 Writes submissions/NN_<attempt_id>.tsv (matching_results format),
 submissions/NN_<attempt_id>.candidates.tsv (candidate_pairs format: exactly the pairs the model scored)
 and submissions/NN_<attempt_id>.json (run manifest: fraction, sample hash, features, params, source hashes).
+CAND_BAND = (attempt, t) in the attempt keeps only pairs that attempt scored with p >= t, plus pairs it never scored
+(added later, e.g. by retrieval): the final models' band, decided and written as the candidate set.
 One row per test S1 in test_source1 order; ids S2-/S3- only, in a fixed order.
 Run src/er_validate.py on the Mac afterwards (it needs the raw test TSVs).
 """
@@ -98,6 +100,12 @@ def main():
         print(f"re-deciding {len(pairs):,} test pairs from {a.from_probs} (no training)", flush=True)
     else:
         pairs, keep, yv, cols = train_and_score(a, cfg, mod, get, cache, frac, t0)
+    band = getattr(mod, "CAND_BAND", None)
+    if band:
+        n0 = len(pairs)
+        b = pl.read_parquet(cache / "oof" / f"test_{band[0]}{a.tag}.parquet", columns=["s1_idx", "pool_idx", "prob"]).rename({"prob": "pb"})
+        pairs = pairs.join(b, on=["s1_idx", "pool_idx"], how="left", maintain_order="left").filter(pl.col("pb").is_null() | (pl.col("pb") >= band[1])).drop("pb")
+        print(f"candidate band: {len(pairs):,} of {n0:,} pairs kept ({band[0]} p >= {band[1]} or added after it)", flush=True)
     pred = get("decide")(pairs, cfg, floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"))
     ts1 = pl.read_parquet(cache / "norm" / "test_s1.parquet", columns=["entity_id"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32))
     tpool = pl.read_parquet(cache / "norm" / "test_pool.parquet", columns=["entity_id"]).with_row_index("pool_idx").with_columns(pl.col("pool_idx").cast(pl.UInt32))
