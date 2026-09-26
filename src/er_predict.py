@@ -81,6 +81,16 @@ def train_and_score(a, cfg, mod, get, cache, frac, t0):
     return pairs, keep, yv, cols
 
 
+def cascade(pairs, minp, topk):
+    """Final candidate set = pairs with p > minp, at most topk per S1 (highest p first); decided on as written."""
+    n0 = len(pairs)
+    out = pairs.filter(pl.col("prob") > minp)
+    if topk:
+        out = out.sort(["s1_idx", "prob", "pool_idx"], descending=[False, True, False]).with_columns(r=pl.int_range(pl.len()).over("s1_idx")).filter(pl.col("r") < topk).drop("r")
+    print(f"candidate cascade: {len(out):,} of {n0:,} pairs kept (p > {minp}, top {topk} per S1)", flush=True)
+    return out
+
+
 def apply_veto(pairs, cache, veto):
     """VETO = {country: [words]}: pairs of that country whose pool name has one of the words and the S1 name does not get p = 0."""
     fold = lambda c: pl.col(c).fill_null("").str.normalize("NFKD").str.replace_all(r"\p{Mn}", "").str.to_lowercase().str.replace_all(r"[^\p{L}\p{N}]+", " ").str.strip_chars().str.split(" ")
@@ -123,6 +133,9 @@ def main():
         b = pl.read_parquet(cache / "oof" / f"test_{band[0]}{a.tag}.parquet", columns=["s1_idx", "pool_idx", "prob"]).rename({"prob": "pb"})
         pairs = pairs.join(b, on=["s1_idx", "pool_idx"], how="left", maintain_order="left").filter(pl.col("pb").is_null() | (pl.col("pb") >= band[1])).drop("pb")
         print(f"candidate band: {len(pairs):,} of {n0:,} pairs kept ({band[0]} p >= {band[1]} or added after it)", flush=True)
+    cminp, ctopk = getattr(mod, "CAND_MINP", None), getattr(mod, "CAND_TOPK", None)
+    if cminp is not None or ctopk is not None:
+        pairs = cascade(pairs, cminp or 0.0, ctopk)
     pred = get("decide")(pairs, cfg, floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"))
     ts1 = pl.read_parquet(cache / "norm" / "test_s1.parquet", columns=["entity_id"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32))
     tpool = pl.read_parquet(cache / "norm" / "test_pool.parquet", columns=["entity_id"]).with_row_index("pool_idx").with_columns(pl.col("pool_idx").cast(pl.UInt32))
