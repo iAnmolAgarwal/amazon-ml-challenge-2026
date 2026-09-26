@@ -14,12 +14,12 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 | 4 `006_stage2` | native-script dictionary, 0.6 floor, stage-2 competition features | 0.97423 | 0.963 |
 | 5 `008_stage3` | + stage-3 correction with 34 label-free pair features | 0.98254 (India 0.98029, US 0.98403) | 0.974 |
 | 6 `009_stage3m` | + 5 label-free decoy-marker name features (`er_feat6.py`) | 0.98498 (India 0.98361, US 0.98589) | 0.981 |
-| **10 `018_lexical`** | **band stage 2 with every feature set (016) + country-lifted markers and French house parser (`er_lift.py`) + char-3-gram retrieval route (`er_retrieve.py`, `er_newpairs.py`) + lexical correction (`er_lexical.py`)** | **0.98618** (India 0.98502, US 0.98695)* | **0.984** |
+| **10 `018_lexical`** | **band stage 2 with every feature set (016) + country-lifted markers and French house parser (`er_lift.py`) + char-3-gram retrieval route (`er_retrieve.py`, `er_newpairs.py`) + lexical correction (`er_lexical.py`)** | **0.98618** (India 0.98502, US 0.98695)* | **0.98393** |
 
 *Full-graph CV with retrieval-route pairs on the 10% sample owners only; the route adds +0.00126 on those owners, so full-route CV is about 0.9873 (derived).
 
-- The CV→LB gap shrank from −0.011 (006) to −0.0085 (008) to −0.004 (009) to −0.002 (018). The new features reject the decoys that test has more of (measured).
-- **Implied France** (LB minus US/India at CV weights 0.38/0.47): 0.902 (006) → 0.929 (008) → 0.960 (009) → **0.967-0.973** (018; the range covers the route correction and LB rounding) (derived). France is 15% of test and has no labels. The decoy-marker table France builds from its own test pairs rejects French decoys (word swaps like Club↔École, inserted Groupe/Holding/Développement/Participations, SARL→SCI swaps, shifted house numbers).
+- The CV→LB gap shrank from −0.011 (006) to −0.0085 (008) to −0.004 (009) to −0.0023 (018). The new features reject the decoys that test has more of (measured).
+- **Implied France** (LB minus US/India at CV weights 0.38/0.47): 0.902 (006) → 0.929 (008) → 0.960 (009) → **0.967-0.973** (018, from the exact LB 0.98393; the range covers the route correction) (derived). France is 15% of test and has no labels. The decoy-marker table France builds from its own test pairs rejects French decoys (word swaps like Club↔École, inserted Groupe/Holding/Développement/Participations, SARL→SCI swaps, shifted house numbers).
 - 008 details (measured; 009 adds +0.00244 CV, SE 0.00002, 5/5):
   - pair precision 0.9966, recall 0.9548; blocking oracle 0.9940;
   - F0.5 by true-match count: 0 → 0.985, 1 → 0.944 (weakest), 2 → 0.980, 3+ → 0.985–0.987.
@@ -31,7 +31,7 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 | Submission | #10, uploaded 26 Sep 2026, ~09:55 IST (git tag `sub-10`) |
 | Attempt | `attempts/018_lexical` (chain 016_stage2b → 017_route → 018_lexical); code commits `caa614e`, `0c0760a` |
 | CV | 0.98618 full graph; paired vs 012 (009 + route + lexical): +0.00077, SE 0.00002, 5/5 folds (US +0.0007, India +0.0008); 016 vs 009 +0.00092 (5/5); route over 016 +0.00126 (sample, 5/5); lexical over 017 +0.00016 (full, nested, 5/5) |
-| Public LB | **0.984** (+0.003 vs 009) |
+| Public LB | **0.98393** (+0.003 vs 009) |
 | matching_results.tsv | sha256 `efdafee034c499c80d2cbebd5c4db7ee08a15719fc0cf95c5749e026c27d2183` (md5 `04a02dcececc401e4ff2a93302f3b21b`); 1,732,544 rows, 5,769,711 matches (3.33 per S1), 5.8% empty |
 | Validator | organisers' `validate_submission.py --check-ids`: PASS (matching + candidates) |
 | Final-package form | `019_band`: same matches (byte-identical file), candidate set = the final models' band, 7.25 per S1 instead of 46.5; CV equal (0.986181); validator PASS; `submissions/archive/11_019_band.*` |
@@ -44,7 +44,7 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 | 4 | 25 Sep 15:22 | 006_stage2 | 0.97423 | 0.963 |
 | 5 | 25 Sep 23:00 | 008_stage3 | 0.98254 | 0.974 |
 | 6 | 26 Sep 01:30 | 009_stage3m | 0.98498 | 0.981 |
-| **7** | **26 Sep ~09:55** | **018_lexical** (file 10) | **0.98618** | **0.984** |
+| **7** | **26 Sep ~09:55** | **018_lexical** (file 10) | **0.98618** | **0.98393** |
 
 ## 2. What the data generator does (the key insight)
 
