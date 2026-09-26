@@ -25,10 +25,11 @@ from rapidfuzz.distance import Levenshtein
 from rapidfuzz import fuzz
 
 from common import load_config
+from er_norm import fold
 
 KEYS = ["s1_idx", "pool_idx"]
 D = {3, 4, 5, 7, 9, 11, 13, 21}
-LEGAL = {"inc": 1, "llc": 2, "ltd": 3, "limited": 3, "corp": 4, "corporation": 4, "co": 5, "company": 5, "lp": 6, "llp": 7, "pvt": 8, "private": 8, "pc": 9, "pllc": 10, "plc": 11, "public": 12, "sarl": 13, "sas": 14, "sa": 15, "eurl": 16, "sci": 17, "snc": 18}
+LEGAL = {"inc": 1, "incorporated": 1, "llc": 2, "ltd": 3, "limited": 3, "corp": 4, "corporation": 4, "co": 5, "company": 5, "lp": 6, "llp": 7, "pvt": 8, "private": 8, "pc": 9, "pllc": 10, "plc": 11, "public": 12, "sarl": 13, "sas": 14, "sa": 15, "eurl": 16, "sci": 17, "snc": 18}
 FILLER = {"the", "center", "centre", "services", "service", "group", "and", "of", "shop", "store", "enterprises", "enterprise", "solutions", "company"}
 HONOR = {"dr", "mr", "mrs", "ms", "shri", "sri", "smt", "st", "saint"}
 ALIAS = re.compile(r"\b(aka|fka|dba|formerly|nee|née|d/b/a|a/k/a)\b", re.I)
@@ -40,7 +41,8 @@ NAMES = (["nA", "nB", "n_eq", "shift_d", "shift_12", "trunc_last", "drop_first",
          + ["ed_best", "ed_end", "ed_start", "ed_mid", "ed_digit", "ed_double", "ed_transp", "ed_conf", "one_swap", "tok_typo", "tok_unknown"]
          + ["core_lev", "core_ratio", "op_end", "op_vowel", "op_double", "op_digit", "op_ins", "op_del", "op_conf", "drop_pos", "prefix_drop", "prefix_add", "reorder", "joinsplit", "acronym"]
          + ["lg_s", "lg_p", "lg_ns", "lg_np", "fill_add", "fill_drop", "honor", "alias_s", "alias_p", "web_p", "idtag", "first_tok", "last_tok", "ntok_s", "ntok_p", "len_s", "len_p", "native_s", "native_p"]
-         + ["raw_eq", "low_eq", "upper_p", "upper_s", "empty_p", "empty_s", "hash", "pobox", "frac", "aw_s", "aw_p", "street_eq", "addr_jac", "addr_ratio", "comp_jac"])
+         + ["raw_eq", "low_eq", "upper_p", "upper_s", "empty_p", "empty_s", "hash", "pobox", "frac", "aw_s", "aw_p", "street_eq", "addr_jac", "addr_ratio", "comp_jac"]
+         + ["d11", "acr1", "n_so", "n_po", "unk_len", "core_ls", "core_lp", "lg_eq", "null_tok"])
 
 
 def op_code(a, b):
@@ -48,41 +50,55 @@ def op_code(a, b):
         return -1, 0.0
     if a == b:
         return 0, 0.0
-    ia, ib = int(a), int(b)
-    d = ib - ia
-    if len(a) > 1 and b == a[:-1] or len(b) > 1 and a == b[:-1]:
+    if a.lstrip("0") == b.lstrip("0"):
+        return 11, 0.0
+    d = int(b) - int(a)
+    if len(a) > 1 and b == a[:-1]:
         return 1, float(d)
-    if len(a) > 1 and b == a[1:] or len(b) > 1 and a == b[1:]:
+    if len(a) > 1 and b == a[1:]:
         return 2, float(d)
     if d in D:
         return 3, float(d)
     if -d in D:
         return 4, float(d)
-    if abs(d) <= 2:
+    if abs(d) in (1, 2):
         return 5, float(d)
-    if a.lstrip("0") == b.lstrip("0"):
-        return 11, 0.0
     if len(a) == len(b):
         diff = [i for i in range(len(a)) if a[i] != b[i]]
         if len(diff) == 1:
             return 6, float(d)
         if len(diff) == 2 and diff[1] == diff[0] + 1 and a[diff[0]] == b[diff[1]] and a[diff[1]] == b[diff[0]]:
             return 7, float(d)
-    if abs(len(a) - len(b)) == 1 and Levenshtein.distance(a, b) == 1:
+    if len(b) == len(a) + 1 and Levenshtein.distance(a, b) == 1:
         return 8, float(d)
-    if b.startswith(a) or a.startswith(b):
+    if len(b) < len(a) and a.startswith(b):
         return 9, float(d)
-    if b.endswith(a) or a.endswith(b):
+    if len(b) < len(a) and a.endswith(b):
         return 10, float(d)
+    if len(b) > len(a) and (b.startswith(a) or b.endswith(a)):
+        return 13, float(d)
+    if len(b) == len(a) - 1 and Levenshtein.distance(a, b) == 1:
+        return 14, float(d)
     return 12, float(d)
+
+
+def best_op(a, bs):
+    best = (99, 0.0, None)
+    for b in bs:
+        o, d = op_code(a, b)
+        if o != 12 and o < best[0]:
+            best = (o, d, b)
+    return best
 
 
 def best_edit(xs, ys):
     best = None
     for x in xs:
         for y in ys:
-            e = Levenshtein.distance(x, y)
-            if best is None or e < best[0]:
+            if abs(len(x) - len(y)) > 2:
+                continue
+            e = Levenshtein.distance(x, y, score_cutoff=2)
+            if e <= 2 and (best is None or e < best[0]):
                 best = (e, x, y)
     return best
 
@@ -92,7 +108,7 @@ def edit_kind(x, y):
     end = start = mid = digit = double = conf = 0
     for op in ops:
         pos = op.src_pos
-        if pos >= len(x) - 1:
+        if pos >= len(x) - 2:
             end = 1
         elif pos == 0:
             start = 1
@@ -115,8 +131,9 @@ def feats(r):
     na, nb = NUM.findall(sa), NUM.findall(pa)
     A, B = list(na), list(nb)
     for x in na:
-        if x in B:
-            B.remove(x)
+        y = next((y for y in B if y.lstrip("0") == x.lstrip("0")), None)
+        if y is not None:
+            B.remove(y)
             A.remove(x)
     neq = len(na) - len(A)
     sd = s12 = tl = df = 0
@@ -125,28 +142,46 @@ def feats(r):
         for b in B:
             d = int(b) - int(a)
             sd |= int(d in D)
-            s12 |= int(abs(d) <= 2)
-            tl |= int((len(a) > 1 and b == a[:-1]) or (len(b) > 1 and a == b[:-1]))
-            df |= int((len(a) > 1 and b == a[1:]) or (len(b) > 1 and a == b[1:]))
+            s12 |= int(d in (1, 2))
+            tl |= int(len(a) > 1 and b == a[:-1])
+            df |= int(len(a) > 1 and b == a[1:])
             dmin = abs(d) if dmin < 0 else min(dmin, abs(d))
+    d11 = float(max(-1000, min(1000, int(B[0]) - int(A[0])))) if len(A) == 1 and len(B) == 1 else np.nan
     keep = neq / len(na) if na else -1.0
-    fe = float(bool(na and nb and na[0] == nb[0])) if na and nb else -1.0
-    le = float(bool(na and nb and na[-1] == nb[-1])) if na and nb else -1.0
-    hop, hd = op_code(sh or "", ph or "")
-    so, sdl = (op_code(A[0], min(B, key=lambda b: abs(int(b) - int(A[0])))) if A and B else (-1, 0.0))
+    fe = float(na[0].lstrip("0") == nb[0].lstrip("0")) if na and nb else -1.0
+    le = float(na[-1].lstrip("0") == nb[-1].lstrip("0")) if na and nb else -1.0
+    shz = (sh or "").lstrip("0")
+    used = None
+    if not sh:
+        hop, hd = -1, 0.0
+    elif any(b.lstrip("0") == shz for b in nb):
+        hop, hd = 0, 0.0
+    else:
+        o, d, used = best_op(sh, B)
+        hop, hd = (o, d) if used is not None else (-2, 0.0)
+    As = [a for a in A if a.lstrip("0") != shz]
+    Bs = [b for b in B if b is not used] if used is not None else list(B)
+    if As and Bs:
+        o, d, _ = best_op(As[0], Bs)
+        so, sdl = (o, d) if o != 99 else (12, 0.0)
+    else:
+        so, sdl = (-1, 0.0)
     lead0 = int(bool(re.search(r"(^|\s)0\d", pa)))
-    hlet = int(bool(re.search(r"\b\d+[a-zA-Z]\b", pa)))
-    ts, tp = TOK.findall(sn.lower()), TOK.findall(pn.lower())
+    hlet = int(bool(re.search(r"\b\d+-?[a-zA-Z]\b", pa)) and not re.search(r"\b\d+-?[a-zA-Z]\b", sa))
+    ts, tp = TOK.findall(fold(sn)), TOK.findall(fold(pn))
     so_t, po_t = [t for t in ts if t not in tp], [t for t in tp if t not in ts]
     be = best_edit(so_t, po_t)
     if be:
         ek = edit_kind(be[1], be[2])
         edb = be[0]
     else:
-        ek, edb = (0,) * 7, -1
+        ek, edb = (-1,) * 7, -1
     one_swap = int(len(so_t) == 1 and len(po_t) == 1)
+    acr1 = int(bool(be) and be[0] == 1 and len(be[1]) <= 4 and len(be[1]) == len(be[2]))
     typo = sum(1 for t in so_t if any(Levenshtein.distance(t, u) <= 2 for u in po_t))
-    unk = len(po_t) - sum(1 for u in po_t if any(Levenshtein.distance(t, u) <= 2 for t in so_t))
+    unkt = [u for u in po_t if not any(Levenshtein.distance(t, u) <= 2 for t in so_t)]
+    unk = len(unkt)
+    unk_len = max((len(u) for u in unkt), default=0)
     ops = Levenshtein.editops(sc, pc) if sc and pc else []
     oe = ov = odb = odg = oi = od = ocf = 0
     for op in ops:
@@ -161,12 +196,14 @@ def feats(r):
         else:
             s, i = (pc, op.dest_pos) if op.tag == "insert" else (sc, op.src_pos)
             odb += int((i > 0 and i < len(s) and s[i] == s[i - 1]) or (i + 1 < len(s) and s[i] == s[i + 1]))
+    cs_t, cp_t = [t for t in ts if t not in LEGAL], [t for t in tp if t not in LEGAL]
+    dropped = [t for t in so_t if t not in LEGAL and not any(Levenshtein.distance(t, u) <= 2 for u in po_t)]
     dpos = 0
-    if len(so_t) == 1 and not po_t:
-        i = ts.index(so_t[0])
-        dpos = 1 if i == 0 else (3 if i == len(ts) - 1 else 2)
-    pdrop = int(len(ts) > 1 and tp == ts[1:])
-    padd = int(len(tp) > 1 and ts == tp[1:])
+    if dropped:
+        i = ts.index(dropped[0])
+        dpos = 1 if i == len(ts) - 1 else (2 if i == 0 else 3)
+    pdrop = len(cs_t) - len(cp_t) if 0 < len(cp_t) < len(cs_t) and cs_t[:len(cp_t)] == cp_t else 0
+    padd = len(cp_t) - len(cs_t) if 0 < len(cs_t) < len(cp_t) and cp_t[:len(cs_t)] == cs_t else 0
     reord = int(sorted(ts) == sorted(tp) and ts != tp)
     js = int("".join(ts) == "".join(tp) and ts != tp)
     acr = int(bool(ts and tp) and (("".join(t[0] for t in ts) == "".join(tp)) or ("".join(t[0] for t in tp) == "".join(ts))))
@@ -177,21 +214,25 @@ def feats(r):
     hon = int(any(t in HONOR for t in po_t + so_t))
     nat_s = int(any(ord(c) > 0x900 for c in sn))
     nat_p = int(any(ord(c) > 0x900 for c in pn))
-    aws = set(TOK.findall(sa.lower())) - set(NUM.findall(sa))
-    awp = set(TOK.findall(pa.lower())) - set(NUM.findall(pa))
+    aws = {t for t in TOK.findall(fold(sa)) if not t.isdigit()}
+    awp = {t for t in TOK.findall(fold(pa)) if not t.isdigit()}
     so_a, po_a = len(aws - awp), len(awp - aws)
     ajac = len(aws & awp) / len(aws | awp) if aws | awp else -1.0
     ar = fuzz.ratio(NUM.sub("", sa.lower()), NUM.sub("", pa.lower())) / 100 if sa and pa else -1.0
-    cs, cp = [c.strip().lower() for c in sa.split(",")[1:]], [c.strip().lower() for c in pa.split(",")[1:]]
+    nul = ("", "<null>", "null", "none")
+    cs, cp = [c for c in (x.strip().lower() for x in sa.split(",")) if c not in nul and not NUM.search(c)], [c for c in (x.strip().lower() for x in pa.split(",")) if c not in nul and not NUM.search(c)]
     cjac = len(set(cs) & set(cp)) / len(set(cs) | set(cp)) if set(cs) | set(cp) else -1.0
     ste = float(bool(sst) and sst == pst) if sst or pst else -1.0
+    m1, m2 = re.search(r"\b1/(\d)\b", sa), re.search(r"\b1/(\d)\b", pa)
+    frac = 1 if (m1 and m2 and m1.group(1) != m2.group(1)) else (2 if m2 and not m1 else (3 if m1 and not m2 else 0))
     ep = int(pa.strip() == "" or pa.strip().lower() in ("none", "<null>", "null", "nan"))
     es = int(sa.strip() == "" or sa.strip().lower() in ("none", "<null>", "null", "nan"))
     return [len(A), len(B), neq, sd, s12, tl, df, np.log1p(dmin) if dmin >= 0 else -1.0, keep, fe, le, hop, hd, so, sdl, lead0, hlet,
             edb, *ek, one_swap, typo, unk,
             Levenshtein.distance(sc, pc) if sc and pc else -1, fuzz.ratio(sc, pc) / 100 if sc and pc else -1.0, oe, ov, odb, odg, oi, od, ocf, dpos, pdrop, padd, reord, js, acr,
-            ls[-1] if ls else 0, lp[-1] if lp else 0, len(ls), len(lp), fa, fd, hon, int(bool(ALIAS.search(sn))), int(bool(ALIAS.search(pn))), int(bool(re.search(r"www\.|\.com|\.in\b|\.net|\.org", pn.lower()))), int("id:" in pn.lower() or "id:" in sn.lower()), int(bool(ts and tp) and ts[0] == tp[0]), int(bool(ts and tp) and ts[-1] == tp[-1]), len(ts), len(tp), len(sn), len(pn), nat_s, nat_p,
-            int(sn == pn), int(sn.lower() == pn.lower()), int(pn.isupper()), int(sn.isupper()), ep, es, int("#" in sa or "#" in pa), int(bool(re.search(r"\b(pmb|p\.?o\.? box)\b", (sa + " " + pa).lower()))), int(("/" in sa) != ("/" in pa)), so_a, po_a, ste, ajac, ar, cjac]
+            ls[0] if ls else 0, lp[0] if lp else 0, len(ls), len(lp), fa, fd, hon, int(bool(ALIAS.search(sn))), int(bool(ALIAS.search(pn))), int(bool(re.search(r"www\.|\.c[o0]m|\.in\b|\.net|\.org|(^|\s)[@#]\w", pn.lower()))), int("id:" in pn.lower() or "id:" in sn.lower()), int(bool(ts and tp) and ts[0] == tp[0]), int(bool(ts and tp) and ts[-1] == tp[-1]), len(ts), len(tp), len(sn), len(pn), nat_s, nat_p,
+            int(sn == pn), int(sn.lower() == pn.lower()), int(pn.isupper()), int(sn.isupper()), ep, es, int("#" in sa or "#" in pa), int(bool(re.search(r"\b(pmb|p\.?o\.? box)\b", (sa + " " + pa).lower()))), frac, so_a, po_a, ste, ajac, ar, cjac,
+            d11, acr1, len(so_t), len(po_t), unk_len, len("".join(cs_t)), len("".join(cp_t)), int((ls[0] if ls else 0) == (lp[0] if lp else 0)), int(bool(re.search(r"<null>|\bnull\b", pa.lower())) and pa.strip() != "")]
 
 
 def records(cache, split, which):

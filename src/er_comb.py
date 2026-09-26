@@ -28,6 +28,7 @@ def build(cache, split, pairs, mod, country):
     b = b.join(country, on="s1_idx", how="left").filter(pl.col("country_n") != "france").with_columns(india=(pl.col("country_n") == "india").cast(pl.Float32))
     gen = pl.read_parquet(cache / "feat" / f"{split}_gen.parquet").join(b.select(KEYS), on=KEYS, how="semi")
     b = b.join(gen, on=KEYS, how="left")
+    assert b["nA"].null_count() == 0, f"{split}: band pairs missing generator features (rebuild er_gen for this parent)"
     gcols = [c for c in gen.columns if c not in KEYS]
     base = []
     for f in mod.FEATSC:
