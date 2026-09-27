@@ -2,7 +2,7 @@
 
 Only the team leader uploads. This file is updated after every scored upload, so check it before starting new work. The same content is shared as the team handoff document.
 
-As of 27 Sep 2026, ~18:45 IST. Deadline: 27 Sep 23:59 IST. Upload 20 used; one upload left today. The final package goes in separately if we are in the top 50.
+As of 27 Sep 2026, ~18:45 IST. Deadline: 27 Sep 23:59 IST. Upload 21 used (last). Best public LB: 0.990203 (#20, 029f6_final); the final package is built on 029f6. The final package goes in separately if we are in the top 50.
 Numbers are labelled **measured** (computed on data), **derived** (arithmetic on measured numbers) or **guessed**.
 
 ## 1. Where we are
@@ -25,6 +25,7 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 | 18 `029f4_final` | + France cross-encoder third input (logit weight 0.1) | France-like LOCO +0.00053 / +0.00052 (5/5 both); flat with in-country parents | 0.98999 |
 | 19 `029f5_final` | + single flat LightGBM (205 features, one model) as a meta-model input (027p, src/single); fix 030p | paired vs 030n +0.000015 (4/5, > 2 SE) | 0.989992 |
 | **20 `029f6_final`** | **+ empty-address / name-twin correction fitted on US + India (no country flag) applied to France (030q_fix)** | **LOCO: US->India +0.000062 (5/5), India->US +0.000018 (2/5)** | **0.990203** |
+| 21 `029fmax_final` (endgame bet) | France temperature 3 + floor 0.7 + empty ratio 3 + decoy-shift drops + house-number vetoes on top of 029f6 (28.5k fewer France pairs, 3.18 pairs/S1) | none (label-free profile only; LOCO +0.013 / -0.009) | 0.989057 (-0.0011: France under-recalls, so the aggressive precision moves hurt) |
 
 *Full-graph CV with retrieval-route pairs on the 10% sample owners only; the route adds +0.00126 on those owners, so full-route CV is about 0.9873 (derived).
 
