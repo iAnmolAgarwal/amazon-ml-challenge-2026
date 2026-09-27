@@ -89,7 +89,7 @@ In-country halves are split by band fold parity: `fold % 2 == h` is half `h`. Ea
 
 ## Hardware used originally
 The steps ran on a mix of machines:
-- A 16 GB laptop and AWS instances with 8-64 GB RAM ran the CPU steps. Blocking takes 25-60 min per country block. Stage-2 training takes ~35 min per model on 8 vCPU / 64 GB.
+- CPU machines with 8-96 GB RAM ran the CPU steps. Blocking takes 25-60 min per country block. Stage-2 training takes ~35 min per model on 8 vCPU / 64 GB.
 - Kaggle 2 x T4 ran the cross-encoders.
 
 ## Not reproducible from this code alone (honest gaps)
