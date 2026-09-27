@@ -7,6 +7,8 @@ submissions/NN_<attempt_id>.candidates.tsv (candidate_pairs format: exactly the 
 and submissions/NN_<attempt_id>.json (run manifest: fraction, sample hash, features, params, source hashes).
 CAND_BAND = (attempt, t) in the attempt keeps only pairs that attempt scored with p >= t, plus pairs it never scored
 (added later, e.g. by retrieval): the final models' band, decided and written as the candidate set.
+CAND_OWNER = True keeps each pool record only with its highest-probability S1 (ties -> lowest s1_idx), the first step
+of decide(), so the decisions are unchanged and the written candidate set is the one the decision actually ranks.
 One row per test S1 in test_source1 order; ids S2-/S3- only, in a fixed order.
 Run src/er_validate.py on the Mac afterwards (it needs the raw test TSVs).
 """
@@ -136,6 +138,10 @@ def main():
     cminp, ctopk = getattr(mod, "CAND_MINP", None), getattr(mod, "CAND_TOPK", None)
     if cminp is not None or ctopk is not None:
         pairs = cascade(pairs, cminp or 0.0, ctopk)
+    if getattr(mod, "CAND_OWNER", False):
+        n0 = len(pairs)
+        pairs = pairs.sort(["pool_idx", "prob", "s1_idx"], descending=[False, True, False]).unique("pool_idx", keep="first", maintain_order=True)
+        print(f"candidate owners: {len(pairs):,} of {n0:,} pairs kept (each pool record with its highest-probability S1 only)", flush=True)
     pred = get("decide")(pairs, cfg, floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"))
     ts1 = pl.read_parquet(cache / "norm" / "test_s1.parquet", columns=["entity_id"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32))
     tpool = pl.read_parquet(cache / "norm" / "test_pool.parquet", columns=["entity_id"]).with_row_index("pool_idx").with_columns(pl.col("pool_idx").cast(pl.UInt32))

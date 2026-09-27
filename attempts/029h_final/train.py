@@ -1,6 +1,7 @@
 FLOOR = 0.6
 CAND_BAND = ("006_stage2", 0.001)
 CAND_MINP = 0.001
+CAND_OWNER = True
 PARENT = "027h_meta"
 FRANCE_BASE = "023_comb"
 STACK_DIR = "cache/stack"
