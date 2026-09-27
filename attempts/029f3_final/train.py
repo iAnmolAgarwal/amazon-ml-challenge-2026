@@ -1,0 +1,15 @@
+FLOOR = 0.6
+CAND_BAND = ("006_stage2", 0.001)
+CAND_MINP = 0.001
+CAND_OWNER = True
+PARENT = "029n_final"
+FRANCE_BASE = "024_keys"
+STACK_DIR = "cache/stack"
+W = 0.5
+VETO_WORDS = ["participations", "holding", "distribution", "international"]
+BROAD_WORDS = ["developpement", "france", "groupe"]
+THIRD = "cache/feat/test_ce.parquet"
+THIRD_COL = "ce"
+C = 0.1
+DEPENDS = ["029n_final", "030n_fix", "027n_meta", "028f_ce", "024f_keys", "028k_ce", "028_ce", "024_keys", "023_comb", "019_band", "018_lexical", "017_route", "016_stage2b", "006_stage2", "005n_indic_nocoh", "005f_floor"]
+PREDICT = "python src/er_predict.py 029f3_final --from-probs 029f3_final"

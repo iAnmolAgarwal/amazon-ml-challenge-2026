@@ -5,10 +5,12 @@ usage: python src/er_france.py <attempt_id>
 
 The attempt sets PARENT (test attempt whose US/India rows are kept as they are), FRANCE_BASE (test attempt whose France
 rows give the main probability pA), STACK_DIR (folder with p_test_France.parquet: a_id, r_id, p = pS), W (weight of the
-main logit), VETO_WORDS, BROAD_WORDS and optionally RENAME (default False).
+main logit), VETO_WORDS, BROAD_WORDS, and optionally C / THIRD / THIRD_COL (default C = 0) and RENAME (default False).
 Per France pair (union of both sets): the stack family's zeros on pairs whose pool name adds a BROAD word count as
 missing; p = sigmoid(W * logit(pA) + (1 - W) * logit(pS)) when both exist, else the one that exists; pairs whose pool
 name has a VETO word that the S1 name does not get p = 0.
+C > 0: where THIRD (parquet with s1_idx, pool_idx and the logit column THIRD_COL) has a score z3, the blend logit z becomes
+(1 - C) * z + C * z3.
 RENAME: on renamed pairs (the pool name shares no core-name token with the S1 name, same house number, a shared street
 word, and the S1 is the only one of its country at that house number and street-word set) p = max(p, pS) before the veto.
 Writes cache/oof/test_<attempt>.parquet (s1_idx, pool_idx, prob), read by er_predict.py --from-probs.
@@ -74,6 +76,9 @@ def main():
     both = pl.col("pA").is_not_null() & pl.col("pS").is_not_null()
     blend = 1 / (1 + (-(mod.W * logit(pl.col("pA")) + (1 - mod.W) * logit(pl.col("pS")))).exp())
     d = d.with_columns(prob=pl.when(both).then(blend).otherwise(pl.coalesce("pA", "pS")))
+    if getattr(mod, "C", 0):
+        z3 = pl.read_parquet(mod.THIRD).select(pl.col("s1_idx").cast(pl.UInt32), pl.col("pool_idx").cast(pl.UInt32), pl.col(mod.THIRD_COL).cast(pl.Float64).alias("z3"))
+        d = d.join(z3, on=KEYS, how="left").with_columns(prob=pl.when(pl.col("z3").is_null() | pl.col("prob").is_null()).then(pl.col("prob")).otherwise(1 / (1 + (-((1 - mod.C) * logit(pl.col("prob")) + mod.C * pl.col("z3"))).exp()))).drop("z3")
     if getattr(mod, "RENAME", False):
         d = rename_pairs(cache, d).with_columns(prob=pl.when(pl.col("rn") & pl.col("pS").is_not_null()).then(pl.max_horizontal("prob", "pS")).otherwise(pl.col("prob"))).drop("rn")
     d = d.with_columns(prob=pl.when(pl.col("veto")).then(0.0).otherwise(pl.col("prob")).fill_null(0.0).cast(pl.Float32))
