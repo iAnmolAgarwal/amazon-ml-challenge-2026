@@ -4,6 +4,7 @@ MAIN_TEST = "028k_ce"
 MIN_P = 0.001
 STACK_DIR = "cache/stack"
 CASCADE = (0.02, 10)
+STACK_CE = "mean"
 FEATS = []
 PARAMS = dict(objective="binary", learning_rate=0.05, num_leaves=63, min_data_in_leaf=500, feature_fraction=0.9, bagging_fraction=0.8, bagging_freq=1, lambda_l2=10.0, seed=42, num_threads=12, verbose=-1, deterministic=True, force_col_wise=True)
 ROUNDS = 300

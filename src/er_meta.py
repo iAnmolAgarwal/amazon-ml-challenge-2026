@@ -6,6 +6,8 @@ The attempt sets MAIN (train cache/oof/<MAIN>.parquet, out-of-fold), MAIN_TEST (
 MIN_P (main pairs below it are left out), STACK_DIR (p_train_{India,US}.parquet: a_id, r_id, q, p2 out-of-fold;
 p_test_{France,India,US}.parquet: a_id, r_id, p; scores_{e5i,e5b}_{0,1}_{heldout,test}.parquet: a_id, r_id, ce),
 CASCADE (p2 floor, top k per S1: the stack's kept-pair rule, applied to train so both splits hold the same pairs),
+STACK_CE (cross-encoder inputs: "mean" = mean of the two half models on test, "parity" = on test the half model picked
+by crc32(S1 id) % 2, so each S1 gets one model's score as on train, "none" = no cross-encoder inputs),
 FEATS (side-car cache/feat/{split}_<name>.parquet columns), PARAMS and ROUNDS.
 Rows = union of main pairs (prob >= MIN_P) and stack pairs. Inputs: logits of both probabilities, the min / max /
 sum / difference, stack cross-encoder scores, FEATS, country, and pool-side competition of each probability (rank of
@@ -15,6 +17,7 @@ India; France keeps the main test probabilities -> cache/oof/test_<attempt>.parq
 """
 import argparse
 import time
+import zlib
 from pathlib import Path
 
 import lightgbm as lgb
@@ -38,7 +41,7 @@ def ids(cache, split):
     return s, p
 
 
-def stack(sd, split, s, p, cascade):
+def stack(sd, split, s, p, cascade, mode):
     cs = ["India", "US"] + (["France"] if split == "test" else [])
     d = pl.concat([pl.read_parquet(sd / f"p_{split}_{c}.parquet") for c in cs])
     d = d.join(s.select("a_id", "s1_idx"), on="a_id").join(p, on="r_id").drop("a_id", "r_id")
@@ -47,9 +50,14 @@ def stack(sd, split, s, p, cascade):
         d = d.filter((pl.col("p2") > cascade[0]) & (pl.col("r") <= cascade[1])).drop("r", "p2")
     else:
         d = d.rename({"p": "ps"})
+    if mode == "none":
+        return d.select(KEYS + ["ps"])
     kind = "heldout" if split == "train" else "test"
+    half = s.select("a_id", h=pl.Series([zlib.crc32(x.encode()) % 2 for x in s["a_id"]], dtype=pl.Int32))
     for m in ["e5i", "e5b"]:
-        ce = pl.concat([pl.read_parquet(sd / f"scores_{m}_{h}_{kind}.parquet", columns=["a_id", "r_id", "ce"]) for h in (0, 1)])
+        ce = pl.concat([pl.read_parquet(sd / f"scores_{m}_{h}_{kind}.parquet", columns=["a_id", "r_id", "ce"]).with_columns(h=pl.lit(h, pl.Int32)) for h in (0, 1)])
+        if split == "test" and mode == "parity":
+            ce = ce.join(half, on=["a_id", "h"], how="semi")
         ce = ce.group_by("a_id", "r_id").agg(pl.col("ce").mean().cast(pl.Float32).alias(m))
         d = d.join(ce.join(s.select("a_id", "s1_idx"), on="a_id").join(p, on="r_id").select(KEYS + [m]), on=KEYS, how="left")
     return d.select(KEYS + ["ps", "e5i", "e5b"])
@@ -66,7 +74,7 @@ def pool_side(u, c):
 def build(cache, split, mod):
     s, p = ids(cache, split)
     main = pl.read_parquet(cache / "oof" / f"{mod.MAIN if split == 'train' else 'test_' + mod.MAIN_TEST}.parquet", columns=KEYS + ["prob"])
-    u = main.rename({"prob": "pm"}).filter(pl.col("pm") >= mod.MIN_P).join(stack(Path(mod.STACK_DIR), split, s, p, mod.CASCADE), on=KEYS, how="full", coalesce=True)
+    u = main.rename({"prob": "pm"}).filter(pl.col("pm") >= mod.MIN_P).join(stack(Path(mod.STACK_DIR), split, s, p, mod.CASCADE, getattr(mod, "STACK_CE", "mean")), on=KEYS, how="full", coalesce=True)
     for f in mod.FEATS:
         u = u.join(pl.read_parquet(cache / "feat" / f"{split}_{f}.parquet"), on=KEYS, how="left")
     u = u.join(s.select("s1_idx", "country_n"), on="s1_idx").sort(KEYS)

@@ -1,13 +1,13 @@
 FLOOR = 0.6
 CAND_BAND = ("006_stage2", 0.001)
-PARENT = "027_meta"
+PARENT = "027c_meta"
 FRANCE_BASE = "024_keys"
 STACK_DIR = "cache/stack"
 W = 0.5
 VETO_WORDS = ["participations", "holding", "distribution", "international"]
 BROAD_WORDS = ["developpement", "france", "groupe"]
-DEPENDS = ["027_meta", "028k_ce", "028_ce", "024_keys", "023_comb", "019_band", "018_lexical", "017_route", "016_stage2b", "006_stage2", "005n_indic_nocoh", "005f_floor"]
-EVAL = "python src/er_eval.py 029_final --from-oof 027_meta   # optional: 5-fold CV macro F0.5 of the final out-of-fold probabilities (US + India; France has no labels)"
+DEPENDS = ["027c_meta", "028k_ce", "028_ce", "024_keys", "023_comb", "019_band", "018_lexical", "017_route", "016_stage2b", "006_stage2", "005n_indic_nocoh", "005f_floor"]
+EVAL = "python src/er_eval.py 029_final --from-oof 027c_meta   # optional: 5-fold CV macro F0.5 of the final out-of-fold probabilities (US + India; France has no labels)"
 PRE_STEPS = [
     "python src/er_dict.py                              # native-script -> Latin token maps learned from training pairs",
     "python src/er_norm.py --split train && python src/er_norm.py --split test                 # normalization views",
@@ -41,7 +41,7 @@ PRE_STEPS = [
     "python src/ce/ce_export.py collect <dir with ce_{A,B}_{train,test}.parquet> ce",
     "python src/er_ce.py 028_ce && python src/er_ce.py 028k_ce --no-cv   # cross-encoder stack on the band (train CV + test on 024 pairs)",
     "# in-country stack model family: run the command list in src/stack/README.md (CPU steps + Kaggle GPU cross-encoders); it writes cache/stack/",
-    "python src/er_meta.py 027_meta                     # meta combination, US + India (train CV + test)",
+    "python src/er_meta.py 027c_meta                    # meta combination, US + India (train CV + test)",
     "python src/er_france.py 029_final                  # France: logit blend with the stack family, decoy-word veto",
 ]
 PREDICT = "python src/er_predict.py 029_final --from-probs 029_final  # write submissions/archive/NN_029_final.tsv (+ .candidates.tsv)"
