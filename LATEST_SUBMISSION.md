@@ -2,7 +2,7 @@
 
 Only the team leader uploads. This file is updated after every scored upload, so check it before starting new work. The same content is shared as the team handoff document.
 
-As of 27 Sep 2026, ~10:05 IST. Deadline: 27 Sep 23:59 IST. Uploads left today: 4 (after upload 12).
+As of 27 Sep 2026, ~10:40 IST. Deadline: 27 Sep 23:59 IST. Uploads left today: 3 (after upload 13).
 Numbers are labelled **measured** (computed on data), **derived** (arithmetic on measured numbers) or **guessed**.
 
 ## 1. Where we are
@@ -16,7 +16,8 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 | 6 `009_stage3m` | + 5 label-free decoy-marker name features (`er_feat6.py`) | 0.98498 (India 0.98361, US 0.98589) | 0.981 |
 | 10 `018_lexical` | band stage 2 with every feature set (016) + country-lifted markers and French house parser (`er_lift.py`) + char-3-gram retrieval route (`er_retrieve.py`, `er_newpairs.py`) + lexical correction (`er_lexical.py`) | 0.98618 (India 0.98502, US 0.98695)* | 0.98393 |
 | 11 `020_gen` | + generator-operator residual for US/India: number operation codes, name edit operations, confusable characters, legal-form ids, reorder/join, fillers, honorifics, alias and web markers, address-word differences | 0.98700 (India 0.98601, US 0.98766)* | 0.985 |
-| **12 `029b_final`** | **rebuilt chain (GCP) + final correction (023: generator-operator + pool-side features) + e5-small cross-encoder band stack (028) + cross-fitted meta-model over the union with the in-country stack model family (027d, `src/er_meta.py`, `src/stack/`) + France logit blend with the stack family (`src/er_france.py`)** | **0.99046** (India 0.99009, US 0.99071) | **0.988787** |
+| 12 `029b_final` | rebuilt chain (GCP) + final correction (023: generator-operator + pool-side features) + e5-small cross-encoder band stack (028) + cross-fitted meta-model over the union with the in-country stack model family (027d, `src/er_meta.py`, `src/stack/`) + France logit blend with the stack family (`src/er_france.py`) | 0.99046 (India 0.99009, US 0.99071) | 0.988787 |
+| **13 `029e_final`** | **+ extra key / reverse-text candidates on the train sample, so the meta-model (027e) learns them; France unchanged** | **0.99051** (sample-paired +0.00045 vs 027d, 5/5) | **0.989022** |
 
 *Full-graph CV with retrieval-route pairs on the 10% sample owners only; the route adds +0.00126 on those owners, so full-route CV is about 0.9873 (derived).
 
@@ -30,7 +31,8 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 
 | | |
 |---|---|
-| Submission | #12 (file 06_029b_final), uploaded 27 Sep 2026, ~10:00 IST; public LB **0.988787** (exact). Chain: 016 band → 017 route → 018 lexical → 023_comb (CV 0.98742, +0.00138 vs 018, 5/5) → 028_ce cross-encoder stack (0.98779, +0.00037, 5/5) → 027d_meta meta-model (0.99046, +0.00267 vs 028, SE 0.00002, 5/5; re-verified independently; the train candidates lack the route pairs test has, so the expected LB gain was ~+0.001-0.0018) → 029b_final France blend (r17 rule, guard clean). Validator PASS; byte-identical rerun from the zip code; guard vs #11 PASS. matching sha256 `22510911e746bb01dbac0f6b2c53e1cb9af0064eb9b68db7ab703cbc722d78a4`, md5 `eb8d8813b2ab0eb0b7907aafc2e4b4a1`. Final package `submissions/final_029b/Apprentice_submission.zip` (md5 `089d3b12ea45c73337778842ac696fdb`). |
+| Submission | #13 (file 07_029e_final), uploaded 27 Sep 2026, ~10:25 IST; public LB **0.989022** (+0.000235 vs #12, inside the predicted +0.0002-0.0004). 029b plus the extra key / reverse-text candidates (024) in the meta-model: train-side check on a label-free 10% S1 sample (er_extend.py sample 10 3), 024 vs 023 +0.00222 (5/5; added precision 95% US / 91% India), meta 027e vs 027d +0.00045 (SE 0.00004, 5/5). Validator PASS; guard vs #12 clean (France identical). matching sha256 `3b3d598732dee1e2b6eae50caeb523f588c34d5ebba403d7a172b80ffa7b8e54`, md5 `f7d0bd0fb63b5ccb496d183dc90b0c5d`. Top-50 cut at upload time 0.99002 (rank 50); #12 ranked 69. |
+| Submission #12 | (file 06_029b_final), uploaded 27 Sep 2026, ~10:00 IST; public LB **0.988787** (exact). Chain: 016 band → 017 route → 018 lexical → 023_comb (CV 0.98742, +0.00138 vs 018, 5/5) → 028_ce cross-encoder stack (0.98779, +0.00037, 5/5) → 027d_meta meta-model (0.99046, +0.00267 vs 028, SE 0.00002, 5/5; re-verified independently; the train candidates lack the route pairs test has, so the expected LB gain was ~+0.001-0.0018) → 029b_final France blend (r17 rule, guard clean). Validator PASS; byte-identical rerun from the zip code; guard vs #11 PASS. matching sha256 `22510911e746bb01dbac0f6b2c53e1cb9af0064eb9b68db7ab703cbc722d78a4`, md5 `eb8d8813b2ab0eb0b7907aafc2e4b4a1`. Final package `submissions/final_029b/Apprentice_submission.zip` (md5 `089d3b12ea45c73337778842ac696fdb`). |
 | Submission #11 | (file 12_020_gen), uploaded 26 Sep 2026, ~11:15 IST; public LB **0.985**. Attempt `attempts/020_gen` = 018 + a residual LightGBM (127 leaves, 400 rounds, lr 0.05, min data 300, L2 10, boosted from logit p018) on US/India pairs with 0.003 <= p018 <= 0.997, using pair-local generator-operator features; full CV 0.98700, paired vs 018 +0.00082 (SE 0.00001, 5/5; US +0.00071, India +0.00099), re-verified independently; test guard clean (France unchanged); validator PASS; matching sha256 `5b44d976052bdfdd9fc88419e685dd4926caae47a43c3d7f9bde7e20fb90c4ca`, md5 `d32fe6d63f639e26e1098296a9a7ab2a`. Previous record (#10) below. |
 | Submission #10 | uploaded 26 Sep 2026, ~09:55 IST (git tag `sub-10`) |
 | Attempt | `attempts/018_lexical` (chain 016_stage2b → 017_route → 018_lexical); code commits `caa614e`, `0c0760a` |
