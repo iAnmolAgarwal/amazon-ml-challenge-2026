@@ -8,7 +8,10 @@ p_test_{France,India,US}.parquet: a_id, r_id, p; scores_{e5i,e5b}_{0,1}_{heldout
 CASCADE (p2 floor, top k per S1: the stack's kept-pair rule, applied to train so both splits hold the same pairs),
 STACK_CE (cross-encoder inputs: "mean" = mean of the two half models on test, "parity" = on test the half model picked
 by crc32(S1 id) % 2, so each S1 gets one model's score as on train, "none" = no cross-encoder inputs),
-FEATS (side-car cache/feat/{split}_<name>.parquet columns), PARAMS and ROUNDS.
+FEATS (side-car cache/feat/{split}_<name>.parquet columns; an entry is a name or (name, [columns])), FEATS_TEST (name ->
+test file name), FEATS_ROUTE (name -> test file of the retrieval-route pairs, used for main pairs only, so a stack-only pair
+has side-car values only when it is a blocking candidate, as on train), AVAIL (adds the mean logit of the two
+probabilities where both exist, else the one present), PARAMS and ROUNDS.
 Rows = union of main pairs (prob >= MIN_P) and stack pairs. Inputs: logits of both probabilities, the min / max /
 sum / difference, stack cross-encoder scores, FEATS, country, and pool-side competition of each probability (rank of
 the pair among the S1 claiming the pool record, number of claimers, claimers above 0.5, best other claimer, margin).
@@ -76,11 +79,19 @@ def build(cache, split, mod):
     main = pl.read_parquet(cache / "oof" / f"{mod.MAIN if split == 'train' else 'test_' + mod.MAIN_TEST}.parquet", columns=KEYS + ["prob"])
     u = main.rename({"prob": "pm"}).filter(pl.col("pm") >= mod.MIN_P).join(stack(Path(mod.STACK_DIR), split, s, p, mod.CASCADE, getattr(mod, "STACK_CE", "mean")), on=KEYS, how="full", coalesce=True)
     for f in mod.FEATS:
-        u = u.join(pl.read_parquet(cache / "feat" / f"{split}_{f}.parquet"), on=KEYS, how="left")
+        n, c = (f, None) if isinstance(f, str) else f
+        c = None if c is None else KEYS + list(c)
+        x = pl.read_parquet(cache / "feat" / f"{split}_{getattr(mod, 'FEATS_TEST', {}).get(n, n) if split == 'test' else n}.parquet", columns=c).join(u.select(KEYS), on=KEYS, how="semi")
+        if split == "test" and n in getattr(mod, "FEATS_ROUTE", {}):
+            r = pl.read_parquet(cache / "feat" / f"test_{mod.FEATS_ROUTE[n]}.parquet", columns=c).join(u.filter(pl.col("pm").is_not_null()).select(KEYS), on=KEYS, how="semi")
+            x = pl.concat([x, r.join(x.select(KEYS), on=KEYS, how="anti")], how="vertical_relaxed")
+        u = u.join(x, on=KEYS, how="left")
     u = u.join(s.select("s1_idx", "country_n"), on="s1_idx").sort(KEYS)
     u = pool_side(pool_side(u, "pm"), "ps")
     u = u.with_columns(lm=lg(pl.col("pm")).cast(pl.Float32), ls=lg(pl.col("ps")).cast(pl.Float32), cty=(pl.col("country_n") == "india").cast(pl.Float32) + 2 * (pl.col("country_n") == "france").cast(pl.Float32))
     u = u.with_columns(dms=pl.col("lm") - pl.col("ls"), sms=pl.col("lm") + pl.col("ls"), mn=pl.min_horizontal("lm", "ls"), mx=pl.max_horizontal("lm", "ls"))
+    if getattr(mod, "AVAIL", False):
+        u = u.with_columns(av=pl.coalesce(pl.col("sms") / 2, "lm", "ls"))
     return u, main
 
 
