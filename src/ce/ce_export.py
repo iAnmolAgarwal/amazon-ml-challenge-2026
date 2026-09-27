@@ -4,11 +4,20 @@ usage: python src/ce/ce_export.py records            -> cache/ce/records/{train,
        python src/ce/ce_export.py pairs              -> cache/ce/pairs/ce_pairs.parquet + ce_cfg.json (needs cache/cand/train_cand.parquet)
        python src/ce/ce_export.py band [src lo hi]   -> cache/ce/band/{train,test}_band.parquet (default 018_lexical 0.003 0.997)
        python src/ce/ce_export.py collect <dir> [col] -> cache/feat/{train,test}_ce.parquet from ce_{A,B}_{train,test}.parquet in <dir>
+       python src/ce/ce_export.py extra test <band_src> <attempt>        -> cache/ce/extra/test_x.parquet, test_xn.parquet
+       python src/ce/ce_export.py extra train <band_src> <attempt> ...   -> cache/ce/extra/train_x<i>.parquet, train_x<i>n.parquet
+       python src/ce/ce_export.py collectx <col>=<dir1>,<dir2>,... ...   -> cache/feat/train_ce_x.parquet
+       python src/ce/ce_export.py ce2                                    -> cache/feat/train_ce2.parquet, test_ce2_par.parquet
 
 Pool index = source2 rows then source3 rows; s1_idx = source1 row order (same as cache/norm).
 Training pairs: 470k random S1 per half (half 0 = folds 0,1; half 1 = folds 2,3,4); per S1 every gold candidate pair,
 the top 8 non-gold candidates by word_sim and 2 random other non-gold candidates.
 Collect: train = model A on half 1 + model B on half 0; test = mean of the A and B logits; column name default ce.
+Extra: pairs of later attempts outside the band (prob > 0.001, not in cache/feat/{split}_ce.parquet); train attempts are
+taken in order, each minus the pairs of the earlier ones, with the S1 half; the *n files keep the pairs absent from
+<band_src> (the subset also scored by a second model). collectx joins, per extra train file i, each column's half-model
+scores from its i-th directory (ce_{A,B}_train.parquet); test uses `er_extend.py parity ce_x_par <col>=<dir> ...`.
+ce2: train_ce2 = train_ce + train_ce_x, test_ce2_par = test_ce_par + test_ce_x_par; the first file wins on duplicate keys.
 Kaggle (private): kaggle datasets create/version -p cache/ce/{records,pairs,band}; kaggle kernels push with
 src/ce/ce_train.py then src/ce/ce_score.py (enable_gpu, --accelerator NvidiaTeslaT4); kaggle kernels output.
 """
@@ -83,18 +92,71 @@ def collect(cache, src, col="ce"):
         print("wrote", fp, out.shape, out.columns, flush=True)
 
 
+def extra(cfg, cache, out, split, src, attempts):
+    band = pl.read_parquet(cache / "feat" / f"{split}_ce.parquet", columns=K)
+    old = pl.read_parquet(cache / "oof" / f"{'test_' if split == 'test' else ''}{src}.parquet", columns=K)
+    ext = lambda a: pl.read_parquet(cache / "oof" / f"{a}.parquet", columns=K + ["prob"]).filter(pl.col("prob") > 0.001).join(band, on=K, how="anti").select(pl.col("s1_idx").cast(pl.UInt32), pl.col("pool_idx").cast(pl.UInt32))
+    if split == "test":
+        x = ext(f"test_{attempts[0]}")
+        x.write_parquet(out / "test_x.parquet"); x.join(old, on=K, how="anti").write_parquet(out / "test_xn.parquet")
+        print("test extra", x.height, flush=True)
+        return
+    _, h = halves(cfg)
+    prev = None
+    for i, a in enumerate(attempts, 1):
+        x = ext(a)
+        if prev is not None:
+            x = x.join(prev, on=K, how="anti")
+        x = x.unique(K, maintain_order=True).join(h, on="s1_idx", how="left")
+        x.write_parquet(out / f"train_x{i}.parquet"); x.join(old, on=K, how="anti").write_parquet(out / f"train_x{i}n.parquet")
+        prev = x.select(K) if prev is None else pl.concat([prev, x.select(K)])
+        print(a, "train extra", x.height, flush=True)
+
+
+def collectx(cache, specs):
+    rd = lambda d, c: pl.concat([pl.read_parquet(Path(d) / f"ce_{m}_train.parquet").select(pl.col("s1_idx").cast(pl.UInt32), pl.col("pool_idx").cast(pl.UInt32), pl.col("ce").cast(pl.Float32).alias(c)) for m in "AB"])
+    cols = [(c, d.split(",")) for c, d in (a.split("=", 1) for a in specs)]
+    parts = []
+    for i in range(len(cols[0][1])):
+        x = pl.read_parquet(cache / "ce" / "extra" / f"train_x{i + 1}.parquet").select(K)
+        for c, ds in cols:
+            x = x.join(rd(ds[i], c), on=K, how="left")
+        parts.append(x)
+    x = pl.concat(parts)
+    band = pl.read_parquet(cache / "feat" / "train_ce.parquet", columns=K)
+    assert x[cols[0][0]].null_count() == 0 and x.select(K).is_unique().all() and x.join(band, on=K).height == 0
+    x.write_parquet(cache / "feat" / "train_ce_x.parquet")
+    print("train_ce_x", x.shape, {c: x.height - x[c].null_count() for c, _ in cols}, flush=True)
+
+
+def ce2(cache):
+    for out, a, b in [("train_ce2", "train_ce", "train_ce_x"), ("test_ce2_par", "test_ce_par", "test_ce_x_par")]:
+        x = pl.read_parquet(cache / "feat" / f"{a}.parquet")
+        y = pl.read_parquet(cache / "feat" / f"{b}.parquet").select(x.columns).cast(x.schema)
+        z = pl.concat([x, y.join(x.select(K), on=K, how="anti")])
+        assert z.select(K).is_unique().all()
+        z.write_parquet(cache / "feat" / f"{out}.parquet")
+        print(out, x.height, y.height, z.height, flush=True)
+
+
 def main():
     cfg = load_config()
     cache = Path(cfg["cache_dir"])
     cmd, args = sys.argv[1], sys.argv[2:]
     if cmd == "collect":
         return collect(cache, *args)
+    if cmd == "collectx":
+        return collectx(cache, args)
+    if cmd == "ce2":
+        return ce2(cache)
     out = cache / "ce" / cmd
     os.makedirs(out, exist_ok=True)
     if cmd == "records":
         records(cache, out)
     elif cmd == "pairs":
         pairs(cfg, cache, out)
+    elif cmd == "extra":
+        extra(cfg, cache, out, args[0], args[1], args[2:])
     elif cmd == "band":
         band(cfg, cache, out, *(args[:1] + [float(x) for x in args[1:3]]))
 

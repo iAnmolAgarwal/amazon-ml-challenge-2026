@@ -7,11 +7,14 @@ pairs sorted by text length for batching and written back in band order.
 Outputs /kaggle/working/ce_{A,B}_{train,test}.parquet (s1_idx, pool_idx, ce = logit).
 Run 27 Sep: ~4,200 pairs/s per GPU, ~22 min for 3.0M train + 2 x 2.8M test pairs.
 KIN / KOUT / KBS / KNW override the input dir, output dir, batch size and loader workers (for a local CPU check).
+Other pair files (src/ce/ce_export.py extra): add score_cfg.json to the inputs, e.g. {"train": "train_x1.parquet",
+"test": "test_x.parquet"} (only the listed splits are scored; train files need the half column). The band row-count
+check applies only without it.
 """
 import os, sys, subprocess, json
 
 W = r'''
-import os, sys, time, glob, gc
+import os, sys, time, glob, gc, json
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import numpy as np, pandas as pd, torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -22,6 +25,7 @@ def f(name):
     return sorted(glob.glob(f"{IN}/**/{name}", recursive=True))[0]
 
 half = sys.argv[1]; hid = 0 if half == "A" else 1
+FILES = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {"train": "train_band.parquet", "test": "test_band.parquet"}
 md = os.path.dirname(f(f"m{half}/config.json"))
 def P(*a):
     print(half, time.strftime("%H:%M:%S"), *a, flush=True)
@@ -41,13 +45,14 @@ class DS(torch.utils.data.Dataset):
         x = tok([f"{n} ; {d}" for n, d in zip(SN[a], SA[a])], [f"{n} ; {d}" for n, d in zip(PN[b], PA[b])], truncation=True, max_length=ML, padding=True, return_tensors="pt")
         return x["input_ids"], x["attention_mask"], x.get("token_type_ids")
 
-for sp in ["train", "test"]:
+for sp in [x for x in ["train", "test"] if x in FILES]:
     s1 = pd.read_parquet(f(f"{sp}_s1.parquet")); pool = pd.read_parquet(f(f"{sp}_pool.parquet"))
     SN, SA = [np.asarray(s1[c], dtype=object) for c in "na"]; PN, PA = [np.asarray(pool[c], dtype=object) for c in "na"]
     ls1 = s1.n.str.len().values + s1.a.str.len().values; lp = pool.n.str.len().values + pool.a.str.len().values
     del s1, pool
-    pr = pd.read_parquet(f(f"{sp}_band.parquet"))
-    assert len(pr) == {"train": 3008987, "test": 2815521}[sp], (sp, len(pr))
+    pr = pd.read_parquet(f(FILES[sp]))
+    if len(sys.argv) <= 2:
+        assert len(pr) == {"train": 3008987, "test": 2815521}[sp], (sp, len(pr))
     if sp == "train":
         pr = pr[pr.half != hid]
     a = pr.s1_idx.values.astype(np.int64); b = pr.pool_idx.values.astype(np.int64)
@@ -68,12 +73,14 @@ for sp in ["train", "test"]:
 
 KOUT = os.environ.get("KOUT", "/kaggle/working")
 open(f"{KOUT}/ws.py", "w").write(W)
+cf = [os.path.join(r, x) for r, _, fs in os.walk(os.environ.get("KIN", "/kaggle/input")) for x in fs if x == "score_cfg.json"]
+xa = [open(cf[0]).read().strip()] if cf else []
 import torch
 ng = torch.cuda.device_count()
 print("gpus", ng, flush=True)
 if ng >= 2:
-    ps = [subprocess.Popen([sys.executable, f"{KOUT}/ws.py", h], env={**os.environ, "CUDA_VISIBLE_DEVICES": str(i)}) for i, h in enumerate("AB")]
+    ps = [subprocess.Popen([sys.executable, f"{KOUT}/ws.py", h] + xa, env={**os.environ, "CUDA_VISIBLE_DEVICES": str(i)}) for i, h in enumerate("AB")]
     rc = [p.wait() for p in ps]
 else:
-    rc = [subprocess.call([sys.executable, f"{KOUT}/ws.py", h]) for h in "AB"]
+    rc = [subprocess.call([sys.executable, f"{KOUT}/ws.py", h] + xa) for h in "AB"]
 print("return codes", rc, flush=True)
