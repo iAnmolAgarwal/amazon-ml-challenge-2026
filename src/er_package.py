@@ -36,14 +36,42 @@ sparse-dot-topn==1.2.0
 pyarrow==25.0.1
 pyyaml==6.0.3
 psutil==7.2.2
+# cross-encoder steps (GPU; Kaggle default image)
+torch==2.14.0
+transformers==5.17.0
+pandas==3.0.6
 """
 
 README = """# Business entity resolution pipeline ({attempt})
 
-Python 3.12, x86-64 Linux (run on 12-vCPU / 96 GB RAM machines). No external data and no online APIs.
-The cross-encoder steps need a GPU (run on Kaggle, 2x T4); their scripts are in src/ce/ and src/stack/kaggle/.
-Pretrained weights: intfloat/multilingual-e5-small and intfloat/multilingual-e5-base (MIT), fine-tuned on the provided
-training pairs only.
+## Overview (data -> blocking -> matching -> output)
+1. **Data**: the organisers' TSVs are converted to parquet; names and addresses are normalized (native-script words mapped
+   to Latin with a dictionary learned from training pairs only).
+2. **Blocking**: per country, word TF-IDF neighbours plus exact keys, character 3-gram retrieval, extra name keys and
+   reverse character retrieval; about 46 raw candidates per S1.
+3. **Matching**: LightGBM pair models (stages 1-2, band model, retrieval-route classifier, lexical and generator-operator
+   corrections), a fine-tuned cross-encoder score, a second in-country model family (src/stack/), a cross-fitted
+   LightGBM meta-model combining both families, an empty-address correction, and the France blend.
+4. **Output**: expected-F0.5 decision (one owner per pool record, best prefix per S1, floor 0.6) writes
+   matching_results.tsv; candidate_pairs.tsv is the final candidate set the decision ran on (pairs with final
+   probability > 0.001, each pool record kept with its highest-probability S1 only; the decisions are identical to
+   deciding on the full candidate set).
+
+## Models and licences
+- LightGBM 4.7.0 (MIT) for every tree model.
+- intfloat/multilingual-e5-small (MIT, ~118M parameters) and intfloat/multilingual-e5-base (MIT, ~278M parameters),
+  fine-tuned as pair cross-encoders on the provided training pairs only.
+- No external data, no online APIs, no other pretrained models.
+
+## Environments and hardware
+- Main pipeline: Python 3.12, `pip install -r requirements.txt` (CPU packages pinned; the torch / transformers pins are
+  for the cross-encoder steps). Run on 12-vCPU / 96 GB x86-64 Linux (Ubuntu 22.04); longest steps are blocking,
+  stage-1/2 CV and address retrieval (1-2.5 h each on one machine).
+- Cross-encoder steps: GPU (Kaggle 2x T4 with its default image: torch 2.14.0, transformers 5.17.0); scripts in src/ce/
+  and src/stack/kaggle/.
+- Second model family (src/stack/): its own environment, `src/stack/requirements.txt` (Python 3.11), run as described
+  in src/stack/README.md; it writes cache/stack/.
+- Settings of every stage are in attempts/<id>/train.py; data and cache paths in config.yaml.
 
 ## Setup
 ```
