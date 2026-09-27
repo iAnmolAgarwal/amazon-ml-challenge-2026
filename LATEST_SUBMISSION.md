@@ -2,7 +2,7 @@
 
 Only the team leader uploads. This file is updated after every scored upload, so check it before starting new work. The same content is shared as the team handoff document.
 
-As of 26 Sep 2026, 11:30 IST. Deadline: 27 Sep 23:59 IST. Uploads left: 7-8 of 15 overall (5 per day; the portal appears to count a rolling 24 h window including the failed attempt, and the organisers have been asked).
+As of 27 Sep 2026, ~10:05 IST. Deadline: 27 Sep 23:59 IST. Uploads left today: 4 (after upload 12).
 Numbers are labelled **measured** (computed on data), **derived** (arithmetic on measured numbers) or **guessed**.
 
 ## 1. Where we are
@@ -15,7 +15,8 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 | 5 `008_stage3` | + stage-3 correction with 34 label-free pair features | 0.98254 (India 0.98029, US 0.98403) | 0.974 |
 | 6 `009_stage3m` | + 5 label-free decoy-marker name features (`er_feat6.py`) | 0.98498 (India 0.98361, US 0.98589) | 0.981 |
 | 10 `018_lexical` | band stage 2 with every feature set (016) + country-lifted markers and French house parser (`er_lift.py`) + char-3-gram retrieval route (`er_retrieve.py`, `er_newpairs.py`) + lexical correction (`er_lexical.py`) | 0.98618 (India 0.98502, US 0.98695)* | 0.98393 |
-| **11 `020_gen`** | **+ generator-operator residual for US/India: number operation codes, name edit operations, confusable characters, legal-form ids, reorder/join, fillers, honorifics, alias and web markers, address-word differences** | **0.98700** (India 0.98601, US 0.98766)* | **0.985** |
+| 11 `020_gen` | + generator-operator residual for US/India: number operation codes, name edit operations, confusable characters, legal-form ids, reorder/join, fillers, honorifics, alias and web markers, address-word differences | 0.98700 (India 0.98601, US 0.98766)* | 0.985 |
+| **12 `029b_final`** | **rebuilt chain (GCP) + final correction (023: generator-operator + pool-side features) + e5-small cross-encoder band stack (028) + cross-fitted meta-model over the union with the in-country stack model family (027d, `src/er_meta.py`, `src/stack/`) + France logit blend with the stack family (`src/er_france.py`)** | **0.99046** (India 0.99009, US 0.99071) | **0.989** |
 
 *Full-graph CV with retrieval-route pairs on the 10% sample owners only; the route adds +0.00126 on those owners, so full-route CV is about 0.9873 (derived).
 
@@ -29,7 +30,8 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 
 | | |
 |---|---|
-| Submission | #11 (file 12_020_gen), uploaded 26 Sep 2026, ~11:15 IST; public LB **0.985**. Attempt `attempts/020_gen` = 018 + a residual LightGBM (127 leaves, 400 rounds, lr 0.05, min data 300, L2 10, boosted from logit p018) on US/India pairs with 0.003 <= p018 <= 0.997, using pair-local generator-operator features; full CV 0.98700, paired vs 018 +0.00082 (SE 0.00001, 5/5; US +0.00071, India +0.00099), re-verified independently; test guard clean (France unchanged); validator PASS; matching sha256 `5b44d976052bdfdd9fc88419e685dd4926caae47a43c3d7f9bde7e20fb90c4ca`, md5 `d32fe6d63f639e26e1098296a9a7ab2a`. Previous record (#10) below. |
+| Submission | #12 (file 06_029b_final), uploaded 27 Sep 2026, ~10:00 IST; public LB **0.989**. Chain: 016 band → 017 route → 018 lexical → 023_comb (CV 0.98742, +0.00138 vs 018, 5/5) → 028_ce cross-encoder stack (0.98779, +0.00037, 5/5) → 027d_meta meta-model (0.99046, +0.00267 vs 028, SE 0.00002, 5/5; re-verified independently; the train candidates lack the route pairs test has, so the expected LB gain was ~+0.001-0.0018) → 029b_final France blend (r17 rule, guard clean). Validator PASS; byte-identical rerun from the zip code; guard vs #11 PASS. matching sha256 `22510911e746bb01dbac0f6b2c53e1cb9af0064eb9b68db7ab703cbc722d78a4`, md5 `eb8d8813b2ab0eb0b7907aafc2e4b4a1`. Final package `submissions/final_029b/Apprentice_submission.zip` (md5 `089d3b12ea45c73337778842ac696fdb`). |
+| Submission #11 | (file 12_020_gen), uploaded 26 Sep 2026, ~11:15 IST; public LB **0.985**. Attempt `attempts/020_gen` = 018 + a residual LightGBM (127 leaves, 400 rounds, lr 0.05, min data 300, L2 10, boosted from logit p018) on US/India pairs with 0.003 <= p018 <= 0.997, using pair-local generator-operator features; full CV 0.98700, paired vs 018 +0.00082 (SE 0.00001, 5/5; US +0.00071, India +0.00099), re-verified independently; test guard clean (France unchanged); validator PASS; matching sha256 `5b44d976052bdfdd9fc88419e685dd4926caae47a43c3d7f9bde7e20fb90c4ca`, md5 `d32fe6d63f639e26e1098296a9a7ab2a`. Previous record (#10) below. |
 | Submission #10 | uploaded 26 Sep 2026, ~09:55 IST (git tag `sub-10`) |
 | Attempt | `attempts/018_lexical` (chain 016_stage2b → 017_route → 018_lexical); code commits `caa614e`, `0c0760a` |
 | CV | 0.98618 full graph; paired vs 012 (009 + route + lexical): +0.00077, SE 0.00002, 5/5 folds (US +0.0007, India +0.0008); 016 vs 009 +0.00092 (5/5); route over 016 +0.00126 (sample, 5/5); lexical over 017 +0.00016 (full, nested, 5/5) |
