@@ -75,7 +75,7 @@ README = """# Business entity resolution pipeline ({attempt})
   list are used); data and cache paths are in config.yaml (its device / train_file / test_file / metric / cv keys are
   unused). src/er_feat3.py and attempts not named in the command list are earlier experiments, not part of this chain.
 - Data: the main pipeline finds the organisers' dataset anywhere under data/; the second model family expects it at
-  src/stack/dataset/{train,test}/ (e.g. `ln -s ../../data/<...>/dataset src/stack/dataset`) and its commands are run
+  src/stack/dataset/{{train,test}}/ (e.g. `ln -s ../../data/<...>/dataset src/stack/dataset`) and its commands are run
   from src/stack/. Run outside any other git checkout (paths resolve to the enclosing repository root).
 - Cross-encoder weights: intfloat/multilingual-e5-small revision 614241f622f53c4eeff9890bdc4f31cfecc418b3 and
   intfloat/multilingual-e5-base revision d128750597153bb5987e10b1c3493a34e5a4502a (the revisions current on 26 Sep 2026).
