@@ -48,7 +48,7 @@ Validation: 5-fold CV over S1 (stratified by country and match count), every sta
 
 ## 5. Results & Error Analysis
 
-- **F_0.5 Score (macro):** 5-fold CV on all 2.2M train S1 (US + India; France has no labels): {CV_FINAL}. Public leaderboard 0.985 for the single-family pipeline before the meta-model.
+- **F_0.5 Score (macro):** 5-fold CV on all 2.2M train S1 (US + India; France has no labels): 0.99046 (US 0.99071, India 0.99009). Public leaderboard 0.985 for the single-family pipeline before the meta-model.
 - **Common false positives (wrong merges):** decoys that keep the name and address but shift the house number by a small typical step, or insert a generic business word; legal-form swaps; unit-number changes on the same building. The final model cut CV false-positive pairs from 12,352 to 7,578.
 - **Common false negatives (missed matches):** pairs never retrieved by blocking (the largest remaining source); true pool records claimed by another S1 with a near-identical name; S1 with an empty or "None" address whose name is shared by other S1 (no distinguishing evidence); records with one true match, which score lowest.
 
@@ -76,7 +76,7 @@ Modelling the generator, rather than generic string similarity, drove most of th
 | + generator-operator correction | 0.987 | 0.985 |
 | + pool-side competition features in the final correction | 0.98742 | - |
 | + cross-encoder band score, extra key / reverse-retrieval candidates | 0.98779 | - |
-| + meta-model with the in-country stack model family, France blend | {CV_FINAL_SHORT} | this submission |
+| + meta-model with the in-country stack model family, France blend | 0.99046 | this submission |
 
 ---
 
