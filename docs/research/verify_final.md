@@ -9,18 +9,19 @@ Tags: **M** = measured by me on data, **D** = derived (arithmetic on measured nu
 |---|---|---|
 | Code identity (core src vs code that built 019/020) | PASS | see 26 Sep 23:15 |
 | Folds | PASS | identical to original (hash) |
-| dict / norm / block (train+test) | PASS (counts) | 98,021,508 train pairs = original manifest |
+| dict / norm / block (train+test) | PASS | 98,021,508 train / 78,924,662 test pairs; dict md5 = original; oracle per S1 identical |
 | 005n stage-1 OOF | PASS | 0.97005 vs 0.97008; oracle identical per S1 |
 | 005f / 006 stage 2 | PASS | 0.97425 vs 0.97423; oracle identical |
-| 016 band | pending | |
+| 016 band | running (paused 02:45) | fold train pairs 10.36M = 4/5 of 12.9M |
 | 017 route / 018 lexical | pending | |
 | 019 vs original upload-10 file | pending | |
 | 023 comb (rewritten) | pending (code review below) | |
 | 024 keys | pending | |
-| 025 veto | pending | |
+| 025 veto | preview PASS (safe, near no-op) | 6 of 845,431 France pairs on the 020 output, all decoys |
 | cascade | pending | |
-| 026 blend | pending | |
-| Final package | pending | |
+| r18 meta (027) | GO with caveats | no leak; +0.00295 CV but LB about +0.0007-0.0012 over 024; package needs B code |
+| 026 blend | open issues | parity fixed by lead 00:34; route/K9 kill not visible in CV; package needs the other pipeline code |
+| Final package (029b_final) | GO (file); zip GO after doc fixes | byte-identical rerun of er_meta/er_france/er_predict on g2; validator PASS; guard PASS |
 
 ---
 
@@ -89,3 +90,89 @@ Tags: **M** = measured by me on data, **D** = derived (arithmetic on measured nu
 ## 27 Sep 01:35 IST: 006 stage-2 OOF: PASS
 - Rebuilt CV **0.97425** vs original 0.97423 (+0.000023, per-fold SE 0.000019: noise) (M). India 0.97212 vs 0.97207, US 0.97568 vs 0.97567; pair P 0.99319 vs 0.99322, R 0.93999 vs 0.93991. Oracle identical for every S1; 97.96% of S1 have an identical F0.5.
 - s1_test (005f test probabilities, 100% train): 98,021,508 train pairs / 7,490,646 positives as in the original manifest; test file 78,924,662 rows = test_cand (M).
+
+## 27 Sep 02:10 IST: 006 test output vs the original upload-4 file: PASS (run-to-run variation only)
+- Rebuilt `01_006_stage2.tsv` (g1) vs original `04_006_stage2.tsv` (M): pair Jaccard 0.9909, 97.07% of S1 identical (France 95.7%, India 96.9%, US 97.8%); 5,786,760 vs 5,788,376 pairs.
+- Guard, original -> rebuilt (pairs/S1, empty, house-conflict): US 3.3292/0.0589/0.0779 -> 3.3291/0.0588/0.0778; India 3.3165/0.0585/0.1678 -> 3.3160/0.0583/0.1679; France 3.4475/0.0499/0.0180 -> 3.4430/0.0498/0.0174 (M). Aggregates equal to 3-4 decimals.
+- Same python/polars/numpy/lightgbm versions, same training sample hash (df5d0317...), same 8 threads, same n_train_pairs/n_pos in both manifests; the only difference is the CPU (AWS r7a vs GCP), so the 2.9% of S1 that differ are floating-point run-to-run variation compounded over two retrained stages. Consistent with the CV match (+0.00002). For judging 019 later: expect a similar 2-4% of S1 to differ from 11_019_band.tsv, with matching aggregates.
+
+## 27 Sep 02:45 IST: paused by the lead (016 band CV on fold 4; retrieval on g2 still running). Remaining checks, in order
+Tools (Mac scratchpad of this session): `cmp_tsv.py A.tsv B.tsv` (per-S1 / per-pair comparison by country), `guard_tsv.py f1.tsv f2.tsv ...` (pairs/S1, empty, house-conflict, added/dropped vs previous; validated on 11_019_band exactly), `veto_check.py f.tsv` (France veto hits + house signature), `vf/` (test house columns).
+1. **016 band**: `results.json` vs original 0.98589 (per fold 0.98579/0.98588/0.98587/0.98592/0.98600; India 0.98466, US 0.98671); per-entity paired vs the original is not possible (no original entity_scores for 016), so check aggregates + oracle 0.99398 + P 0.99823 / R 0.96037.
+2. **Route (g2 union, g1 fit/score)**: test new pairs kept with p > 0.001 about 0.94/S1 (original); fit uses 10% owner sample, 300 rounds.
+3. **018 lexical --cv**: expect CV about 0.98605 (no train route pairs, see 23:25) and paired 016 -> 018 about +0.00016, >= 4/5 folds.
+4. **019**: rebuilt `NN_019_band.tsv` vs original `11_019_band.tsv` (cmp_tsv; expect 2-4% of S1 differ, aggregates equal); guard vs reference US 3.3624/0.0579/0.0863, India 3.3268/0.0585/0.1718, France 3.2585/0.0588/0.0100; candidates about 7.25/S1 (12.6M).
+5. **023 comb**: paired 018 -> 023 (alarm below +0.0011; original 021 +0.00140, US +0.00123, India +0.00165); per-fold 5/5; France unchanged on test (guard France identical to 019); guard US/India vs 020's (US 3.3663/0.0866, India 3.3303/0.1722).
+6. **024 keys**: test guard vs 023; kept K9+rtext pairs (reference K9 alone 1,511,429); emitted additions per S1 vs reference France +0.026, India +0.019, US +0.002. Train side: UNVERIFIED unless the lead runs the owner-sample chain (23:20 list).
+7. **025 veto**: `veto_check.py` on 024's output; expect a handful of France pairs (6 on the 020 output).
+8. **Cascade**: `logs/rebuild/cascade_check.log`: diff vs full must be >= 0 or within noise at the chosen (minp, topk); candidate count per S1.
+9. **026 blend**: grid log after the parity fix; require paired PASS on all 5 folds and on the owner sample; count 024 emissions dropped by 026 on test by source (base / route / K9-rtext) and country; package blocker (other pipeline's code) stands.
+10. **Final package**: README from er_package for the chosen attempt (PRE_STEPS/EVAL gaps of 023-026, template placeholders `[update with the final upload]` / `[final]`, CV numbers), `validate_submission.py --check-ids` PASS on g1, candidates = decided set, every match inside it, zip file list and name/trace scan, manifest src hashes = src at package time (build on g1).
+
+## 27 Sep 08:05 IST: adversarial audit of the r18 meta-model (m023 = 0.99037 CV, +0.00295 vs 023): interim
+Scripts: g2 `~/vf18/a1.py`-`a4.py` (copies in my scratchpad). Inputs: g2 `cache/oof/{023_comb,test_023_comb,m023}.parquet` (md5 = g4's r18 copies), g4 `bc_{train,test}.parquet`, `t_m023.parquet`. Numbers below are M unless tagged.
+
+**(1) Fold leakage: no first-order leak found.**
+- meta.py: the fold-f model trains on `fold != f` of our folds and predicts `fold == f`. Every input is a probability, a CE score, or a label-free pool-side aggregate of them. No label, no fold-f fit.
+- B's q (`stack_ce.py evaluate` with SAVE_IC=e1): outside the band, q = p2 of `exp_final_s25_spec`, predicted per row by the model of that S1's own crc32 fold (`predict_stream(row_fold=...)`, models trained on `f != k`, early stopping on a slice of the training folds). Inside the band, q = p3 from `oof_stage3` (fold `!= k` -> `== k`). The CE scores are heldout by fold parity (half h scored by the model trained on the other half). B's pair tables left-join the gold (`pairs.py`); no gold pair is injected into the train candidates, and no B feature file reads the ground truth except the transliteration dictionary (same in-sample mining as our er_dict).
+- Second-order paths, all accepted elsewhere in our stack (feat4, r11, 023): (a) the q, CE and pool features of the meta's training rows come from B models that saw our fold f's labels (B folds are not our folds); (b) B's stacker sees CE features of training rows from the half model that saw its validation fold; (c) B chose its settings on the same OOF (self-reported optimism 0.001-0.004 at B level). None of these puts a validation row's own label into its features.
+- Not verifiable: README step 9 says B's delivered export was an unlogged one-off; the q file reproduces B's reported OOF exactly (0.98783 vs 0.98782), which is consistent with the code above but does not prove it.
+- Real train/test feature shift inside the meta (not a leak): e5i/e5b are single heldout models on train but the **mean of both half models on test** (prep_b.py). The means are smoother. r18 measured "no CE inputs" as equal on 005n (0.98884 both). Recommended fix: drop e5i/e5b from the meta (`--drop e5i,e5b`) unless m023 without them is > 2 SE worse.
+
+**(2) Train/test parity: the cascade is built the same way; the gap comes from our side (A), and it means the train CV over-states the test gain.**
+- B's cascade is the same on both splits: train keeps p2 > 0.02 and top 10 by p2 per S1 from B's OOF p2. The ranks among exported rows equal the full-table ranks for every row with p2 > 0.02. B rows/S1: US 3.94 train vs 4.09 test, India 3.88 vs 3.97.
+- **Where the gain comes from.** Meta restricted to A's own candidate universe: +0.00042 vs 023 (US +0.00048, India +0.00033, 5/5). Rows outside A's 98M candidates (B-only rows): **+0.00253** (US +0.00210, India +0.00316). So 86% of the CV gain is union recall: 60,238 B-only pairs emitted on train (US 0.0227/S1 at 99.1% precision, India 0.0342/S1 at 98.5%).
+- **Why test adds less.** Train A = 023 OOF with **no route pairs at all** (the rebuild links 017 -> 016 on train) and no K9. Test A = test_023_comb, which carries the route (A emits 0.0110/S1 US, 0.0122/S1 India route pairs on test). B-only rows/S1 relative to A's base candidates are the same on both splits: US 0.0505 train vs 0.043 test, and the meta emits about 45% vs 40% of them. But on test the route already holds half of them. Emitted additions that are new to test A: US 0.0063/S1 B-only + 0.0019 route pairs A did not emit, vs 0.0227 on train (0.36x); India 0.0253 + 0.0020 vs 0.0342 (0.80x). With 024 (K9 + reverse text) as A, test coverage grows further.
+- Label-free check on those additions (house-conflict share of B-only additions): US 0.241 train vs 0.230 test; India 0.287 vs 0.318 (x1.11). Overall emitted conflict US 0.0864 -> 0.0875, India 0.1721 -> 0.1735 (same as r18's guard). No decoy signature.
+- Running on g2: route (name/address char-3-gram top 40) and K9 reachability of the 60k train B-only additions, to measure directly how much of the +0.00253 route/K9 would deliver anyway.
+- 08:35 **Route/K9 reachability of the train B-only additions (preliminary: K9 keys + route name view; address view running).** Reachable by K9: US 65%, India 77%; by the route name view: 28% / 28%; by either: **US 69%, India 80%**. Precision of the additions: reachable 99.2% / 98.9%, unreachable 98.9% / 96.7%.
+  - Gain carried by the reachable B-only additions: +0.00188 (US +0.00143, India +0.00255). Gain carried by the unreachable ones: +0.00062 (5/5).
+  - **Meta vs (023 + every reachable pair at the meta's probability): +0.00103 (SE 0.00001, 5/5; US +0.00113, India +0.00089).** This is a lower bound on the meta's gain over a perfect 024: it assumes 024's route classifier and decision emit every reachable pair as well as the meta does.
+- 08:51 **Final reachability (K9 + route name + route address views, all 60,238 train B-only additions):** reachable **US 87%, India 83%** (K9 65% / 77%, route 65% / 32%). On test, K9 alone reaches 63% (US) / 72% (India) of the test B-only additions vs 65% / 77% on train, so the parity holds.
+  - Gain carried by reachable B-only additions +0.00213 (US +0.00182, India +0.00261); by unreachable ones +0.00037 (US +0.00027, India +0.00052); within A's own candidates +0.00042.
+  - Upper bound of what route + K9 could take from these pairs (023 + every reachable pair at the meta's probability): +0.00217 over 023.
+  - **Meta vs that bound: +0.00078 (SE 0.00001, 5/5; US +0.00074, India +0.00083).** This is the floor of the meta's gain over a 024 that captured every reachable pair perfectly.
+
+**(3) Realistic LB gain (D unless noted).** LB weights: US 663,106 / India 809,986 / France 259,452 of 1,732,544 test S1 (0.383 / 0.468 / 0.150). France keeps A's probabilities, so it adds 0.
+- **Over 023 as uploaded (route, no K9):** scale the B-only part by the measured test/train addition ratio (US 0.36, India 0.80): US 0.00048 + 0.36 x 0.00210 = +0.0012, India 0.00033 + 0.80 x 0.00316 = +0.0029. That gives **LB about +0.0018**.
+- **Over 024 (K9 + reverse text on test):** the floor is 0.383 x 0.00074 + 0.468 x 0.00083 = **+0.0007**. If 024 realises about 70% of the reachable-pair value (G; its own measured gains, route +0.00126 and K9 + rtext +0.00123, are the same order as the +0.00217 bound, and they also include pairs B lacks), US is about +0.0013 and India about +0.0016, so **LB about +0.0012**. Haircut 10-20% for test decoy density (India B-only additions: house-conflict 0.318 on test vs 0.287 on train) and B's self-reported OOF optimism. **Realistic: +0.0007 to +0.0012 over 024**, not the +0.0025 the headline CV suggests.
+- **Over 028:** not measured (m028 has no result line on g4). 028's cross-encoder partly overlaps B's CE signal, so expect it at or below the 024 range (G).
+
+**Verdict: GO WITH CAVEATS** (no leak; the CV gain is real but about 2.5-4x larger than what test can deliver on top of 024):
+1. Build the final meta with A = the final test stack (024 or 028) and gate it on the test guard by class. Train cannot see route/K9, so CV will keep over-stating the gain; state the LB expectation as +0.0007 to +0.0012.
+2. Drop e5i/e5b from the meta inputs (test = mean of two half models, train = one heldout model), or keep them only if `--drop e5i,e5b` costs > 2 SE on 023.
+3. France: A's probabilities (the meta never saw a French label; r17 owns France).
+4. **Package blocker (same as 026):** the output depends on B's probability files and CE scores. The zip must contain B's code path (CPU pipeline, Kaggle CE kernels, the export step) and B's README admits unlogged steps (export, kernel wrappers, non-bit-identical CE reruns). If the organisers' "regenerate from this folder" rule is enforced, this is a compliance risk that the human must accept explicitly. Without that acceptance: NO-GO for the final package, and 024/028 stays the final.
+5. The g1 chain was not touched. On g2 I wrote only `~/vf18/*` and `cache/cand/{train,test}_ret_{keys,name,address}_vf.parquet` (tag `_vf`, safe to delete).
+
+## 27 Sep 09:45 IST: FINAL GO / NO-GO for 029b_final (06_029b_final.tsv, Apprentice_submission.zip on g1)
+**(1) Zip (M): PASS, with doc fixes below.**
+- `output/matching_results.tsv` md5 eb8d8813... = `06_029b_final.tsv`; `output/candidate_pairs.tsv` md5 432b8f2c... = `06_029b_final.candidates.tsv` (byte-identical). Validator PASS (1,732,544 rows; 100,120 empty; candidates 32,049 empty S1).
+- Contents: 85 code files + README + requirements + config + Documentation_template.md. No data, cache, credentials, keys, tokens or home paths. Scan of every code file for AI/tool names, person names, team or partner wording: clean. The only hits are the word "partners" in a filler-word list and "a 16 GB laptop" in `src/stack/README.md` (hardware note, harmless). Names appear only in Documentation_template.md (template header).
+- README chain vs what ran: same steps and a valid order as rebuild_chain.sh (feat5/feat6/lift read no probabilities, so running them before stage 2 is fine); the 017_route copy (cp instead of the chain's symlink, equivalent) and `018_lexical --cv` are present; then er_gen, er_comb 023, the CE export/Kaggle/collect, er_ce 028, the stack family README, er_meta 027d, er_france 029b, er_predict. Every intra-package import resolves (ce/ce_export.py adds src to sys.path). Every attempt in DEPENDS is in the zip.
+- Note: `src/stack/README.md` ships its section "Not reproducible from this code alone (honest gaps)" (unlogged export step, reconstructed flags, CE reruns not bit-identical). That is honest, but it is an explicit admission against the "regenerate from this folder" rule. The human should know it is in the zip.
+- Note: g1's `cache/stack` has only the p_* files, not the `scores_{e5i,e5b}_*` files that `er_meta` (STACK_CE parity) reads. g4's `cache/ext` has them. The package is unaffected, but g1 alone cannot rerun 027d.
+
+**(2) Reproduction from cache on g2 (isolated copy of the zip's code in `~/vf29`, M): PASS, byte-identical.**
+- `er_meta.py 027d_meta` (inputs: 028_ce train/test, the stack p_* files with md5 = g1's, the e5i/e5b score files from g4): CV **0.99046** (US 0.99071, India 0.99009), 028_ce 0.98779. Train OOF md5 088345cf... = g1; test md5 1b83f607... = g1 (probabilities identical, max diff 0.0).
+- `er_france.py 029b_final`: test_029b_final md5 f302fc8f... = g1 (712,367 France pairs vetoed to 0; 80,831 stack-only pairs).
+- `er_predict.py 029b_final --from-probs 029b_final`: matching md5 **eb8d8813...** and candidates md5 **432b8f2c...** = g1's files.
+
+**(3) Final guard vs upload 11 (12_020_gen, LB 0.985; = submissions/matching_results.tsv, md5 d32fe6d6...) (M):**
+| country | pairs/S1 | empty | house-conflict |
+|---|---|---|---|
+| US | 3.3663 -> 3.3858 | 0.0579 -> 0.0577 | 0.0866 -> 0.0876 |
+| India | 3.3303 -> 3.3677 | 0.0586 -> 0.0579 | 0.1722 -> 0.1737 |
+| France | 3.2585 -> 3.3190 | 0.0588 -> 0.0579 | 0.0100 -> 0.0104 |
+- Added 72,794 pairs (US 16,392, India 34,163, France 22,239); dropped 13,882. 95.3% of S1 unchanged (US 97.1%, India 95.6%, France 89.7%).
+- Signature of the change (conflict share / share with a decoy house shift d in {1..21}): US added 0.318 / 0.172, dropped 0.505 / 0.265; India added 0.314 / 0.054, dropped 0.333 / 0.106; France added 0.048 / 0.008, dropped 0.080 / 0.063. The reference model change 019 -> 020 (LB went up) had US added 0.387 / 0.156, India 0.399 / 0.078. In every country the added pairs are cleaner than the dropped ones, and conflict per country rises by only 0.001-0.0015. **Guard PASS.** France moves the most (10% of S1, +0.060 pairs/S1). It has no labels, so r17's label-free evidence is the only support.
+
+**(4) Documentation (fix before the zip is final; wording suggestions):**
+- **Wrong for 029b:** section 4 says "extra candidates from exact name keys and reverse character retrieval scored by the route classifier", and appendix row "+ cross-encoder band score, extra key / reverse-retrieval candidates | 0.98779". 029b uses 023 pairs (no K9/rtext; no er_keys/er_rtext step in the README), and 0.98779 is 028_ce's CV, which has no K9. If 029b ships: delete that clause and relabel the row "+ cross-encoder band score | 0.98779". (If 029_final with 024 pairs replaces it, the wording holds, but the row's CV must be that attempt's.)
+- **Contradiction with the design rule:** section 2.1 says "Every feature compares one pool record with its own S1", and 2.2 says "every stacked input out-of-fold". The second family's stack uses within-S1 cross-encoder rank/gap features and supporting-record features, and its OOF is on its own entity folds. Suggested: "Every feature of the main pipeline compares one pool record with its own S1 ...; the second model family's probabilities are out-of-fold on its own entity folds and enter the meta-model only as inputs."
+- **Overclaim of the CV:** in section 5, after "0.99046 (US 0.99071, India 0.99009)", add: "The training candidates do not contain the retrieval-route pairs that the test candidates have, so part of the meta-model's +0.0027 CV gain over 028 is recall that the route already provides on test; we expect about +0.001 on the leaderboard." (My estimate: +0.0007 to +0.0012 over 024-class stacks, about +0.0018 over 023 as uploaded; D.)
+- "The final model cut CV false-positive pairs from 12,352 to 7,578": not re-measured in the rebuild (it is the original 021 number). Re-measure on 027d or delete.
+- Section 3: "The final candidate band (stage-2 probability >= 0.001 plus route pairs)": now also includes the second family's pairs. Add "and the second model family's pairs". Its "decisions are identical to deciding on the full set" was measured for 019 only.
+- Section 5 LB line and appendix "this submission": fine as placeholders until the final LB is known. Update after upload.
+
+**VERDICT: GO for 06_029b_final.tsv as the final upload** (reproducible byte-for-byte from the zip's code and cache, validator PASS, guard PASS). **GO for the zip after the documentation fixes above** (rebuild with er_package --final; the output files must stay md5 eb8d8813... / 432b8f2c...). The residual risk is compliance: the second family's reproduction relies on its README with admitted gaps and on Kaggle GPU runs. That is the human's call; it does not affect the matching file.
