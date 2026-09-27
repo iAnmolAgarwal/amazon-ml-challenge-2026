@@ -2,7 +2,7 @@
 
 Only the team leader uploads. This file is updated after every scored upload, so check it before starting new work. The same content is shared as the team handoff document.
 
-As of 27 Sep 2026, ~18:45 IST. Deadline: 27 Sep 23:59 IST. Upload 17 used; the organisers' mail raised the total limit to 17 from 18:00, so further uploads may not be available (check the portal). The final package goes in separately if we are in the top 50.
+As of 27 Sep 2026, ~18:45 IST. Deadline: 27 Sep 23:59 IST. Upload 18 used (more uploads remain available on the portal). The final package goes in separately if we are in the top 50.
 Numbers are labelled **measured** (computed on data), **derived** (arithmetic on measured numbers) or **guessed**.
 
 ## 1. Where we are
@@ -21,7 +21,8 @@ Numbers are labelled **measured** (computed on data), **derived** (arithmetic on
 | 14 `029h_final` | + our cross-encoder scores (e5-small, e5-base) and pair side-car features (feat5) as meta inputs (027h); test cross-encoder score from one half model per S1 (parity) | 0.99074 (India 0.99055, US 0.99086) | 0.989465 |
 | 15 `029l_final` | + cross-encoder scores on the added (route / extra-key) pairs as meta inputs, 127 leaves (027l); empty-address correction (030l); France on the 024 base (extra-key pairs); owner-only candidate file (3.68 per S1) | sample-paired +0.00049 vs 027h (5/5) | 0.989727 |
 | 16 `029n_final` | meta 027n: extra-key pairs for every train S1 (024f_keys, 028f_ce) with cross-encoder scores on all of them; fix 030n | sample-paired +0.00014 vs 027l (5/5) | 0.989801 |
-| **17 `029f2_final`** | **+ France rename rule: a renamed business at the S1's unique exact address takes max(blend, stack-family p)** | **LOCO +0.00033 (US held out) / +0.00062 (India held out), 5/5 both** | **0.989886** |
+| 17 `029f2_final` | + France rename rule: a renamed business at the S1's unique exact address takes max(blend, stack-family p) | LOCO +0.00033 / +0.00062, 5/5 both | 0.989886 |
+| **18 `029f4_final`** | **+ France cross-encoder third input (logit weight 0.1)** | **France-like LOCO +0.00053 / +0.00052 (5/5 both); flat with in-country parents** | **0.98999** |
 
 *Full-graph CV with retrieval-route pairs on the 10% sample owners only; the route adds +0.00126 on those owners, so full-route CV is about 0.9873 (derived).
 
