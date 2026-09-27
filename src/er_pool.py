@@ -28,18 +28,19 @@ KEYS = ["s1_idx", "pool_idx"]
 PR = ["pr_rank", "pr_other", "pr_margin", "pr_sum", "pr_n01", "pr_n50"]
 
 
-def other_best(df, col):
-    top = pl.col(col).max().over("pool_idx")
-    ntop = (pl.col(col) == top).sum().over("pool_idx")
-    second = pl.when(pl.col(col) < top).then(pl.col(col)).otherwise(None).max().over("pool_idx")
-    return pl.when((pl.col(col) == top) & (ntop == 1)).then(second).otherwise(top)
+def other_best(df, col, out):
+    """Adds column out = best value of col among the other S1 of the same pool record (null if none)."""
+    c, t = pl.col(col), pl.col("_top")
+    df = df.with_columns(_top=c.max().over("pool_idx"))
+    df = df.with_columns(_ntop=(c == t).sum().over("pool_idx"), _sec=pl.when(c < t).then(c).otherwise(None).max().over("pool_idx"))
+    return df.with_columns(pl.when((c == t) & (pl.col("_ntop") == 1)).then(pl.col("_sec")).otherwise(t).alias(out)).drop("_top", "_ntop", "_sec")
 
 
 def pool_side(pairs):
     p = pl.col("prob")
-    return pairs.with_columns(
+    return other_best(pairs, "prob", "pr_other").with_columns(
         pr_rank=p.rank("min", descending=True).over("pool_idx").clip(upper_bound=20).cast(pl.Float32),
-        pr_other=other_best(pairs, "prob").fill_null(0.0).cast(pl.Float32),
+        pr_other=pl.col("pr_other").fill_null(0.0).cast(pl.Float32),
         pr_sum=(p.sum().over("pool_idx") - p).cast(pl.Float32),
         pr_n01=(p > 0.01).sum().over("pool_idx").cast(pl.Float32),
         pr_n50=(p > 0.5).sum().over("pool_idx").cast(pl.Float32),
@@ -55,7 +56,9 @@ def contrasts(cache, split, feats, cols, band_keys):
     out = band_keys
     for f, names in have.items():
         x = pl.read_parquet(cache / "feat" / f"{split}_{f}.parquet", columns=KEYS + names).with_columns([pl.col(c).cast(pl.Float32).fill_null(-1.0) for c in names])
-        x = x.with_columns([(pl.col(c) - other_best(x, c).fill_null(-1.0)).alias("pc_" + c) for c in names]).select(KEYS + ["pc_" + c for c in names])
+        for c in names:
+            x = other_best(x, c, "_o").with_columns((pl.col(c) - pl.col("_o").fill_null(-1.0)).alias("pc_" + c)).drop("_o")
+        x = x.select(KEYS + ["pc_" + c for c in names])
         out = out.join(x.join(band_keys, on=KEYS, how="semi"), on=KEYS, how="left")
         del x
     return out
