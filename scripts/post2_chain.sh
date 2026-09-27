@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# After post_chain.sh: blend grid with the second pipeline (026_blend), then the candidate cascade check.
+# After post_chain.sh: blend grid with the in-country stack model family (026_blend), then the candidate cascade check.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export PYTHONUNBUFFERED=1

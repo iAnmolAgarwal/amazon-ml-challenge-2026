@@ -1,11 +1,11 @@
-"""Blend our final probabilities with a second, independent pipeline's pair probabilities (same team) on the union of
+"""Blend the final probabilities with the in-country stack model family's pair probabilities (src/stack) on the union of
 both candidate sets.
 
 usage: python src/er_blend.py <attempt_id> [--grid]
 
-The attempt sets OURS (our attempt: cache/oof/<OURS>.parquet train OOF; test_<OURS_TEST or OURS>.parquet test), EXT_DIR (folder with
-p_train_{India,US}.parquet: a_id, r_id, q = out-of-fold score, p2 (train is cut to their test cascade: p2 > 0.02, top 10 per S1); p_test_{France,India,US}.parquet: a_id, r_id, p) and the
-blend parameters W (weight of our logit), FILL_EXT (their probability for pairs they do not list), FILL_OURS (our
+The attempt sets OURS (our attempt: cache/oof/<OURS>.parquet train OOF; test_<OURS_TEST or OURS>.parquet test), EXT_DIR (cache/stack, folder with
+p_train_{India,US}.parquet: a_id, r_id, q = out-of-fold score, p2 (train is cut to the stack's test cascade: p2 > 0.02, top 10 per S1); p_test_{France,India,US}.parquet: a_id, r_id, p) and the
+blend parameters W (weight of our logit), FILL_EXT (the stack's probability for pairs they do not list), FILL_OURS (our
 probability for pairs we do not list) and FRANCE ("blend" or "ours").
 p = sigmoid(W * logit(ours) + (1 - W) * logit(theirs)), with the fill values for one-sided pairs.
 --grid evaluates W x FILL_EXT x FILL_OURS on the train union with the harness decision (choose on folds 0-2, confirm on
