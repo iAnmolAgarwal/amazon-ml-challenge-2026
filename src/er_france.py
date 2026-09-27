@@ -5,10 +5,12 @@ usage: python src/er_france.py <attempt_id>
 
 The attempt sets PARENT (test attempt whose US/India rows are kept as they are), FRANCE_BASE (test attempt whose France
 rows give the main probability pA), STACK_DIR (folder with p_test_France.parquet: a_id, r_id, p = pS), W (weight of the
-main logit), VETO_WORDS and BROAD_WORDS.
+main logit), VETO_WORDS, BROAD_WORDS and optionally RENAME (default False).
 Per France pair (union of both sets): the stack family's zeros on pairs whose pool name adds a BROAD word count as
 missing; p = sigmoid(W * logit(pA) + (1 - W) * logit(pS)) when both exist, else the one that exists; pairs whose pool
 name has a VETO word that the S1 name does not get p = 0.
+RENAME: on renamed pairs (the pool name shares no core-name token with the S1 name, same house number, a shared street
+word, and the S1 is the only one of its country at that house number and street-word set) p = max(p, pS) before the veto.
 Writes cache/oof/test_<attempt>.parquet (s1_idx, pool_idx, prob), read by er_predict.py --from-probs.
 """
 import argparse
@@ -29,6 +31,24 @@ def words(c):
 def logit(e):
     e = e.clip(1e-6, 1 - 1e-6)
     return (e / (1 - e)).log()
+
+
+def rename_pairs(cache, d):
+    """Flags the renamed pairs of d (s1_idx, pool_idx) at the S1's own unique address."""
+    toks = lambda c: words(c).list.eval(pl.element().filter(pl.element() != ""))
+    s = pl.read_parquet(cache / "raw" / "test_source1.parquet", columns=["business_address"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32), t=toks("business_address"))
+    s = s.join(pl.read_parquet(cache / "norm" / "test_s1.parquet", columns=["country_n", "name_core"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32)), on="s1_idx").filter(pl.col("country_n") == "france")
+    p = pl.concat([pl.read_parquet(cache / "raw" / f"test_source{i}.parquet", columns=["business_address"]) for i in (2, 3)]).with_row_index("pool_idx").with_columns(pl.col("pool_idx").cast(pl.UInt32), t=toks("business_address"))
+    p = p.join(pl.read_parquet(cache / "norm" / "test_pool.parquet", columns=["name_core"]).with_row_index("pool_idx").with_columns(pl.col("pool_idx").cast(pl.UInt32)), on="pool_idx").join(d.select("pool_idx").unique(), on="pool_idx")
+    stop = s.select(w="t").explode("w").group_by("w").len().sort("len", descending=True).head(150)["w"].to_list()
+    view = lambda x: x.select(pl.exclude("t", "name_core", "business_address", "country_n"), h=pl.col("t").list.eval(pl.element().filter(pl.element().str.contains(r"^\d{1,5}$"))).list.first().str.replace(r"^0+", ""),
+                              w=pl.col("t").list.eval(pl.element().filter((pl.element().str.len_chars() > 2) & ~pl.element().str.contains(r"\d"))).list.set_difference(pl.lit(stop)).list.unique().list.sort(),
+                              n=pl.col("name_core").fill_null("").str.split(" ").list.unique())
+    s, p = view(s), view(p)
+    s = s.with_columns(nk=pl.when(pl.col("h").is_not_null() & (pl.col("w").list.len() > 0)).then(pl.len().over("h", pl.col("w").list.join(" "))))
+    x = d.select(KEYS).join(s, on="s1_idx").join(p, on="pool_idx", suffix="_p")
+    x = x.filter((pl.col("n").list.set_intersection("n_p").list.len() == 0) & (pl.col("h") == pl.col("h_p")) & (pl.col("w").list.set_intersection("w_p").list.len() > 0) & (pl.col("nk") == 1))
+    return d.join(x.select(KEYS, rn=pl.lit(True)), on=KEYS, how="left").with_columns(pl.col("rn").fill_null(False))
 
 
 def main():
@@ -54,6 +74,8 @@ def main():
     both = pl.col("pA").is_not_null() & pl.col("pS").is_not_null()
     blend = 1 / (1 + (-(mod.W * logit(pl.col("pA")) + (1 - mod.W) * logit(pl.col("pS")))).exp())
     d = d.with_columns(prob=pl.when(both).then(blend).otherwise(pl.coalesce("pA", "pS")))
+    if getattr(mod, "RENAME", False):
+        d = rename_pairs(cache, d).with_columns(prob=pl.when(pl.col("rn") & pl.col("pS").is_not_null()).then(pl.max_horizontal("prob", "pS")).otherwise(pl.col("prob"))).drop("rn")
     d = d.with_columns(prob=pl.when(pl.col("veto")).then(0.0).otherwise(pl.col("prob")).fill_null(0.0).cast(pl.Float32))
     out = pl.concat([parent.join(fr.select("s1_idx"), on="s1_idx", how="anti").with_columns(pl.col("prob").cast(pl.Float32)), d.select(KEYS + ["prob"])]).sort(KEYS)
     out.write_parquet(cache / "oof" / f"test_{a.attempt_id}.parquet")
