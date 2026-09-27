@@ -1,0 +1,12 @@
+name: final_s25_spec
+pairs_cfg: {k_r: 3, k_a: 15, maxdf: 3000, min_score: 0.1, spec: 1}
+train_blocks: [India, US]
+eval_blocks: [India, US]
+sample_rate: 0.25
+rounds: 800
+save_models: true
+decision:
+  - {type: threshold, t: 0.7}
+  - {type: expected_f}
+  - {type: expected_f, min_p: 0.5}
+drop_features: [cos_addr_c3]

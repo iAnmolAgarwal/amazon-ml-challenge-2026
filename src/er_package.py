@@ -40,7 +40,10 @@ psutil==7.2.2
 
 README = """# Business entity resolution pipeline ({attempt})
 
-Python 3.12, x86-64 Linux (tested on AWS r7a.2xlarge: 8 cores, 64 GB RAM). No external data, APIs or pretrained models.
+Python 3.12, x86-64 Linux (run on 12-vCPU / 96 GB RAM machines). No external data and no online APIs.
+The cross-encoder steps need a GPU (run on Kaggle, 2x T4); their scripts are in src/ce/ and src/stack/kaggle/.
+Pretrained weights: intfloat/multilingual-e5-small and intfloat/multilingual-e5-base (MIT), fine-tuned on the provided
+training pairs only.
 
 ## Setup
 ```
@@ -51,17 +54,6 @@ Place the organisers' `dataset/` folder (train/ and test/ TSVs) under `data/` (a
 ## Reproduce end to end
 ```
 python src/prepare_raw.py                         # TSV -> parquet (cache/raw)
-python src/er_dict.py                             # native-script -> Latin token maps learned from training pairs
-python src/er_norm.py --split train               # normalization views
-python src/er_norm.py --split test
-python src/er_block.py --split train              # candidate generation (blocking)
-python src/er_block.py --split test
-python src/er_feat.py --split train               # pair features
-python src/er_feat.py --split test
-python src/er_feat2.py --split train              # side-car features (name frequency, conservative names)
-python src/er_feat2.py --split test
-python src/er_feat3.py --split train              # side-car coherence features (agreement with each S1's anchor candidates)
-python src/er_feat3.py --split test
 {pre}{evalline}
 {predictline}
 ```
@@ -88,7 +80,9 @@ for split in ("train", "test"):
 
 DOC = ROOT / "docs" / "Documentation_template.md"
 PLACEHOLDERS = ("[Your Team Name]", "[List all team members]", "[Date]", "[e.g.,", "[total]", "[]", "[brief description]", "[your best validation score]", "[Brief description", "[Blocking + Classifier", "*Provide a brief", "*Describe how", "*Key insights", "*Outline your", "*Summarize your", "*Include any", "*Your complete")
-SRC_FILES = ["common.py", "er.py", "er_dict.py", "er_norm.py", "er_block.py", "er_feat.py", "er_feat2.py", "er_feat3.py", "er_feat4.py", "er_feat5.py", "er_feat6.py", "er_lift.py", "er_stage3.py", "er_retrieve.py", "er_newpairs.py", "er_lexical.py", "er_keys.py", "er_rtext.py", "er_pool.py", "er_gen.py", "er_comb.py", "er_blend.py", "er_model.py", "er_eval.py", "er_predict.py", "er_package.py"]
+SRC_DIRS = ["stack", "ce"]
+BANNED = re.compile(r"harsimran|akshit|nitya|anmol|apprentice|partner pipeline|teammate|team ?mate|handoff|second pipeline|their pipeline|claude|codex|anthropic|co-authored", re.I)
+SRC_FILES = ["common.py", "er.py", "er_dict.py", "er_norm.py", "er_block.py", "er_feat.py", "er_feat2.py", "er_feat3.py", "er_feat4.py", "er_feat5.py", "er_feat6.py", "er_lift.py", "er_stage3.py", "er_retrieve.py", "er_newpairs.py", "er_lexical.py", "er_keys.py", "er_rtext.py", "er_pool.py", "er_gen.py", "er_comb.py", "er_france.py", "er_model.py", "er_eval.py", "er_predict.py"]
 
 
 def validate(mt, ct, cfg, test_dir):
@@ -147,6 +141,10 @@ def main():
     with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
         for f in SRC_FILES:
             zf.write(ROOT / "src" / f, base + "src/" + f)
+        for d in SRC_DIRS:
+            for f in sorted((ROOT / "src" / d).rglob("*")):
+                if f.is_file() and "__pycache__" not in f.parts and f.suffix in (".py", ".md", ".yaml", ".txt", "") and not f.name.startswith("."):
+                    zf.write(f, base + "src/" + str(f.relative_to(ROOT / "src")))
         zf.writestr(base + "src/prepare_raw.py", PREP)
         zf.write(ROOT / "config.yaml", base + "config.yaml")
         mod = load_attempt(attempt)
@@ -165,6 +163,11 @@ def main():
             zf.write(ct, "output/candidate_pairs.tsv")
             zf.write(DOC, "Documentation_template.md")
     names = zipfile.ZipFile(tmp).namelist()
+    with zipfile.ZipFile(tmp) as zf:
+        hits = [n for n in names if n != "Documentation_template.md" and not n.startswith("output/") and BANNED.search(zf.read(n).decode("utf-8", "ignore"))]
+    if hits:
+        tmp.unlink()
+        raise SystemExit(f"names or banned wording in: {hits}")
     if any(re.search(r"(\.pem|credentials|\.env|/cache/|/data/)", n) for n in names):
         tmp.unlink()
         raise SystemExit("forbidden file in zip")

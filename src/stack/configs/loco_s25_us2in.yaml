@@ -1,0 +1,9 @@
+name: loco_s25_us2in
+pairs_cfg: {k_r: 3, k_a: 15, maxdf: 3000, min_score: 0.1}
+train_blocks: [US]
+eval_blocks: [India, US]
+sample_rate: 0.25
+rounds: 800
+decision:
+  - {type: expected_f, min_p: 0.5}
+drop_features: [cos_addr_c3]
