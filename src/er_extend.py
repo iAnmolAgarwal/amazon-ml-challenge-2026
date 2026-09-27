@@ -9,7 +9,8 @@ union gives a main attempt whose train out-of-fold file also holds the extra can
 sampled S1, scored out-of-fold by the retrieval-route classifier (er_newpairs.py score <extra> --split train).
 parity takes, for each column, the directory holding ce_A_test.parquet and ce_B_test.parquet (the two half models'
 test scores) and keeps for each test S1 the score of half model crc32(S1 id) % 2 (0 -> A, 1 -> B), so every test pair
-has one model's score, as every train pair has.
+has one model's score, as every train pair has. Later columns are left-joined, so they may be null where their
+model scored fewer pairs.
 """
 import sys
 import zlib
@@ -46,7 +47,7 @@ def main():
             a = pl.read_parquet(Path(d) / "ce_A_test.parquet").rename({"ce": "a"})
             b = pl.read_parquet(Path(d) / "ce_B_test.parquet").rename({"ce": "b"})
             x = a.join(b, on=KEYS).join(h, on="s1_idx").select(KEYS + [pl.when(pl.col("h") == 0).then(pl.col("a")).otherwise(pl.col("b")).alias(col)])
-            res = x if res is None else res.join(x, on=KEYS)
+            res = x if res is None else res.join(x, on=KEYS, how="left")
         res.sort(KEYS).write_parquet(cache / "feat" / f"test_{out}.parquet")
         print(f"wrote test_{out}: {res.height:,} pairs, columns {res.columns[2:]}")
 
