@@ -7,7 +7,7 @@
 ---
 
 ## 1. Executive Summary
-A multi-stage blocking + gradient-boosting pipeline built around the data generator's noise and decoy operators. Candidates come from word TF-IDF, exact keys and character 3-gram retrieval. LightGBM models then score pairs with label-free features that separate true-match noise (typos, truncated digits, fillers, aliases) from decoys (shifted house numbers, inserted words, swapped legal forms), and an expected-F0.5 decision rule turns the probabilities into per-entity answers. The key innovations are label-free "decoy-marker" statistics learned from the candidate graph itself (which transfer to France, a country with no training labels) and pair-local generator-operator features in a final correction model.
+A multi-stage blocking + gradient-boosting pipeline built around the data generator's noise and decoy operators. Candidates come from word TF-IDF, exact keys and character 3-gram retrieval. LightGBM models then score pairs with label-free features that separate true-match noise (typos, truncated digits, fillers, aliases) from decoys (shifted house numbers, inserted words, swapped legal forms), and an expected-F0.5 decision rule turns the probabilities into per-entity answers. The key innovations are label-free "decoy-marker" statistics learned from the candidate graph itself (which transfer to France, a country with no training labels) and pair-local generator-operator features in a final correction model. A fine-tuned multilingual-e5-small cross-encoder adds a text-pair score on the uncertain band, and a meta-model combines the main pipeline with a second model family (an in-country LightGBM stack over its own candidates, stage-2 models and e5 cross-encoder scores) on the union of both candidate sets. France, which has no labels, uses a logit blend of the two families with a decoy-word veto.
 
 ---
 
@@ -20,7 +20,7 @@ A multi-stage blocking + gradient-boosting pipeline built around the data genera
 - Test has about 1.9x the decoy density of train, and decoys come in clusters that share one perturbed house number. So any feature that looks at an S1's other candidates (coherence, sibling agreement) wins in CV and emits decoys on test; we measured this three times and banned such features. Every feature compares one pool record with its own S1; competition features only ask how strongly other S1 claim the same pool record.
 
 ### 2.2 Solution Strategy
-**Approach Type:** Blocking + Classifier (multi-stage LightGBM with a retrieval route and residual corrections)  
+**Approach Type:** Blocking + Classifier (multi-stage LightGBM with a retrieval route, residual corrections, a cross-encoder score and a meta-model over two model families)  
 **Core Innovation:** label-free decoy-marker scores and generator-operator features that model how the synthetic noise was produced, with a country-level scale correction so the same features work on the unlabelled country.
 
 Validation: 5-fold CV over S1 (stratified by country and match count), every stacked input out-of-fold, and a change is kept only if it gains more than 2 standard errors and in at least 4 of 5 folds; before any upload, a label-free test guard compares emitted pairs per S1, empty-answer rate and house-conflict share per country.
@@ -41,14 +41,14 @@ Validation: 5-fold CV over S1 (stratified by country and match count), every sta
 - Address features: token-set and partial scores; IDF-weighted address-token mass; house, street, postal and unit equality or conflict; house relations (suffix / dropped leading digits, log difference, near difference on the same street, digit reorder, house among the other side's numbers, signed shift and membership in the decoy shift set); number-multiset operation codes; a French house-number fallback parser.
 - Other: graph ranks and gaps from both sides of the candidate set; stage-2 competition features from out-of-fold probabilities (pair rank and margin among the S1 that claim the same pool record, and among the S1's own candidates); cross-fitted lexical likelihoods of added / dropped words and character edits (42 features).
 
-**Model type:** LightGBM throughout: stage 1 (127 leaves, 600 rounds), stage 2 with competition features, a band model on pairs with stage-2 p >= 0.001 using every feature family, the retrieval-route classifier, a lexical correction and a final correction boosted from the previous probability (255 leaves, 800 rounds) using generator-operator features and pool-side competition features.  
+**Model type:** LightGBM throughout: stage 1 (127 leaves, 600 rounds), stage 2 with competition features, a band model on pairs with stage-2 p >= 0.001 using every feature family, the retrieval-route classifier, a lexical correction and a final correction boosted from the previous probability (255 leaves, 800 rounds) using generator-operator features and pool-side competition features; then a small LightGBM stack of that probability with a cross-encoder logit (multilingual-e5-small fine-tuned on training pairs, two halves split by folds so every training score is out-of-fold) on the uncertain band; extra candidates from exact name keys and reverse character retrieval scored by the route classifier; finally a cross-fitted LightGBM meta-model over the union of these pairs and the pairs of the in-country stack model family (its out-of-fold probabilities and e5 cross-encoder scores, plus pool-side competition of both probabilities). France: logit blend (weight 0.5) of both families, with pure decoy-word pairs set to 0.  
 **Threshold selection method:** expected-F0.5 decision per S1: each pool record goes to its highest-probability S1; per S1 the prefix k maximizing 5·Σp(top k)/(Σp + 4k) is kept unless the probability of no match is larger; then pairs with p <= 0.6 are dropped (floor tuned by paired CV).
 
 ---
 
 ## 5. Results & Error Analysis
 
-- **F_0.5 Score (macro):** 5-fold CV on all 2.2M train S1: 0.98758 (US 0.98819, India 0.98667). Public leaderboard 0.985 [update with the final upload].
+- **F_0.5 Score (macro):** 5-fold CV on all 2.2M train S1 (US + India; France has no labels): {CV_FINAL}. Public leaderboard 0.985 for the single-family pipeline before the meta-model.
 - **Common false positives (wrong merges):** decoys that keep the name and address but shift the house number by a small typical step, or insert a generic business word; legal-form swaps; unit-number changes on the same building. The final model cut CV false-positive pairs from 12,352 to 7,578.
 - **Common false negatives (missed matches):** pairs never retrieved by blocking (the largest remaining source); true pool records claimed by another S1 with a near-identical name; S1 with an empty or "None" address whose name is shared by other S1 (no distinguishing evidence); records with one true match, which score lowest.
 
@@ -62,7 +62,7 @@ Modelling the generator, rather than generic string similarity, drove most of th
 ## Appendix
 
 ### A. Code Artefacts
-`code/business_entity_resolution/` contains `src/` (all pipeline modules), `attempts/` (the settings of every stage used, one folder per stage), `config.yaml`, `README.md` and `requirements.txt`. The README lists every command in order, from converting the organisers' TSVs to parquet through normalization, blocking, pair features, the stage models, the retrieval route, the lexical and final corrections, to the prediction step that writes `output/matching_results.tsv` and `output/candidate_pairs.tsv`. Tested on an 8-core, 64 GB Linux machine with Python 3.12.
+`code/business_entity_resolution/` contains `src/` (all pipeline modules), `attempts/` (the settings of every stage used, one folder per stage), `config.yaml`, `README.md` and `requirements.txt`. The README lists every command in order, from converting the organisers' TSVs to parquet through normalization, blocking, pair features, the stage models, the retrieval route, the lexical and final corrections, to the prediction step that writes `output/matching_results.tsv` and `output/candidate_pairs.tsv`. Run on 12-vCPU / 96 GB Linux machines with Python 3.12; the cross-encoder steps ran on Kaggle GPUs (2x T4), and their scripts and settings are included (src/ce, src/stack).
 
 ### B. Additional Results
 | Stage | 5-fold CV macro F0.5 | Public LB |
@@ -74,7 +74,9 @@ Modelling the generator, rather than generic string similarity, drove most of th
 | + decoy-marker name features | 0.985 | 0.981 |
 | + band model, country lift, French parser, character retrieval, lexical correction | 0.986 | 0.98393 |
 | + generator-operator correction | 0.987 | 0.985 |
-| + pool-side competition features in the final correction | 0.98758 | [final] |
+| + pool-side competition features in the final correction | 0.98742 | - |
+| + cross-encoder band score, extra key / reverse-retrieval candidates | 0.98779 | - |
+| + meta-model with the in-country stack model family, France blend | {CV_FINAL_SHORT} | this submission |
 
 ---
 
