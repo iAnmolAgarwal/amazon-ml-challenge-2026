@@ -11,7 +11,8 @@ by crc32(S1 id) % 2, so each S1 gets one model's score as on train, "none" = no 
 FEATS (side-car cache/feat/{split}_<name>.parquet columns; an entry is a name or (name, [columns])), FEATS_TEST (name ->
 test file name), FEATS_ROUTE (name -> test file of the retrieval-route pairs, used for main pairs only, so a stack-only pair
 has side-car values only when it is a blocking candidate, as on train), AVAIL (adds the mean logit of the two
-probabilities where both exist, else the one present), PARAMS and ROUNDS.
+probabilities where both exist, else the one present), PARAMS, ROUNDS and SEEDS (optional list: one model per seed
+and fold, raw scores averaged on train and test).
 Rows = union of main pairs (prob >= MIN_P) and stack pairs. Inputs: logits of both probabilities, the min / max /
 sum / difference, stack cross-encoder scores, FEATS, country, and pool-side competition of each probability (rank of
 the pair among the S1 claiming the pool record, number of claimers, claimers above 0.5, best other claimer, margin).
@@ -113,10 +114,12 @@ def main():
     y, fold = u["y"].fill_null(0).to_numpy(), u["fold"].to_numpy()
     print(f"train: {len(y):,} pairs, {int(y.sum()):,} positives, features {names}, {time.time() - t:.0f}s", flush=True)
     oof, models = np.empty(len(y)), []
+    seeds = getattr(mod, "SEEDS", None)
     for f in range(5):
         tr, va = fold != f, fold == f
-        models.append(lgb.train(mod.PARAMS, lgb.Dataset(X[tr], y[tr], feature_name=names, free_raw_data=True), mod.ROUNDS))
-        oof[va] = models[-1].predict(X[va], raw_score=True)
+        ms = [lgb.train(mod.PARAMS if sd is None else {**mod.PARAMS, "seed": sd}, lgb.Dataset(X[tr], y[tr], feature_name=names, free_raw_data=True), mod.ROUNDS) for sd in (seeds or [None])]
+        models += ms
+        oof[va] = np.mean([m.predict(X[va], raw_score=True) for m in ms], axis=0)
         print(f"fold {f}: {time.time() - t:.0f}s", flush=True)
     res = u.select(KEYS).with_columns(prob=pl.Series((1 / (1 + np.exp(-oof))).astype(np.float32)))
     res.write_parquet(cache / "oof" / f"{a.attempt_id}.parquet")
