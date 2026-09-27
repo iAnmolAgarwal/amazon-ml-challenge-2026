@@ -4,7 +4,10 @@ boosted from logit(parent p), for US/India pairs with lo <= p <= hi.
 
 usage: python src/er_fix.py <attempt_id> [--no-cv] [--no-test]
 
-The attempt sets PARENT, BAND (lo, hi), PARAMS, ROUNDS, USE (feature groups: "pr", "twin", "flags", "raw") and NONEMPTY:
+The attempt sets PARENT, BAND (lo, hi), PARAMS, ROUNDS, USE (feature groups: "pr", "twin", "flags", "raw") and NONEMPTY.
+With FRANCE = True (and TRAIN_PARENT for the train out-of-fold file) the model is fitted on US + India without the country
+flag and applied to the France pairs of test_<PARENT> only; US / India rows keep the parent probability.
+NONEMPTY:
 "full" keeps the corrected p everywhere, "min" keeps it for empty-address pool records only and takes min(p, corrected p)
 for the rest (decoys never have an empty address, so only those records may gain probability).
 Pool-side only: nothing compares a pair with the S1's other candidates. France and pairs outside the band keep p.
@@ -53,11 +56,11 @@ def punct(e):
     return e.fill_null("").str.extract_all(r"[^\w\s]").list.unique().list.sort().list.join("")
 
 
-def build(cache, split, pairs, mod, country):
+def build(cache, split, pairs, mod, country, france=False):
     lo, hi = mod.BAND
     s, p = records(cache, split)
     b = pool_side(pairs).filter((pl.col("prob") >= lo) & (pl.col("prob") <= hi))
-    b = b.join(country, on="s1_idx", how="left").filter(pl.col("country_n") != "france").with_columns(india=(pl.col("country_n") == "india").cast(pl.Float32))
+    b = b.join(country, on="s1_idx", how="left").filter((pl.col("country_n") == "france") if france else (pl.col("country_n") != "france")).with_columns(india=(pl.col("country_n") == "india").cast(pl.Float32))
     b = b.join(twins(pairs, s), on=KEYS, how="left").with_columns([pl.col(x).fill_null(0.0) for x in TWIN])
     b = b.join(s, on="s1_idx", how="left").join(p, on="pool_idx", how="left")
     sn, pn, pa, sa = pl.col("s_business_name").fill_null(""), pl.col("p_business_name").fill_null(""), pl.col("p_business_address").fill_null(""), pl.col("s_business_address").fill_null("")
@@ -88,7 +91,7 @@ def build(cache, split, pairs, mod, country):
         len_r=f(plw.str.len_chars() / sl.str.len_chars().clip(1)),
     )
     groups = {"pr": PR, "twin": TWIN, "flags": FLAGS, "raw": RAW}
-    cols = ["india"] + [c for g in mod.USE for c in groups[g]]
+    cols = ([] if getattr(mod, "FRANCE", False) else ["india"]) + [c for g in mod.USE for c in groups[g]]
     pr = np.clip(b["prob"].to_numpy().astype(np.float64), 1e-6, 1 - 1e-6)
     lp = np.log(pr / (1 - pr))
     X = np.column_stack([lp] + [b[c].cast(pl.Float32).fill_null(np.nan).to_numpy() for c in cols]).astype(np.float32)
@@ -119,7 +122,7 @@ def main():
     s1 = M.load_s1(cfg, "train")
     gold = M.load_gold(cfg, s1)
     fo = M.folds(cfg, s1, gold)
-    oof = pl.read_parquet(cache / "oof" / f"{mod.PARENT}.parquet", columns=KEYS + ["prob"])
+    oof = pl.read_parquet(cache / "oof" / f"{getattr(mod, 'TRAIN_PARENT', mod.PARENT)}.parquet", columns=KEYS + ["prob"])
     keys, lp, X, names = build(cache, "train", oof, mod, s1.select("s1_idx", "country_n"))
     lab = keys.join(fo.select("s1_idx", "fold"), on="s1_idx", how="left", maintain_order="left").join(gold.with_columns(y=pl.lit(1, pl.Int8)), on=KEYS, how="left", maintain_order="left")
     y, fold = lab["y"].fill_null(0).to_numpy(), lab["fold"].to_numpy()
@@ -136,7 +139,7 @@ def main():
     m = lgb.train(mod.PARAMS, lgb.Dataset(X, y, init_score=lp, feature_name=names, free_raw_data=True), mod.ROUNDS)
     del X
     tst = pl.read_parquet(cache / "oof" / f"test_{mod.PARENT}.parquet", columns=KEYS + ["prob"])
-    tkeys, tlp, TX, tnames = build(cache, "test", tst, mod, M.load_s1(cfg, "test").select("s1_idx", "country_n"))
+    tkeys, tlp, TX, tnames = build(cache, "test", tst, mod, M.load_s1(cfg, "test").select("s1_idx", "country_n"), france=getattr(mod, "FRANCE", False))
     assert tnames == names
     tp = 1 / (1 + np.exp(-(tlp + m.predict(TX, raw_score=True))))
     merge(tst, tkeys, restrict(mod, tkeys, tp)).write_parquet(cache / "oof" / f"test_{a.attempt_id}.parquet")
