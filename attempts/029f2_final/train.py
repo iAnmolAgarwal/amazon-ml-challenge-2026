@@ -1,7 +1,5 @@
 FLOOR = 0.6
 CAND_BAND = ("006_stage2", 0.001)
-CAND_MINP = 0.001
-CAND_OWNER = True
 PARENT = "030n_fix"
 FRANCE_BASE = "024_keys"
 STACK_DIR = "cache/stack"

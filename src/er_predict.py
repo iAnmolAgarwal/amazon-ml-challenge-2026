@@ -2,15 +2,15 @@
 
 usage: python src/er_predict.py <attempt_id> [--tag ""] [--train-frac F]   (default: the attempt's TRAIN_FRAC)
 
-Writes submissions/NN_<attempt_id>.tsv (matching_results format),
-submissions/NN_<attempt_id>.candidates.tsv (candidate_pairs format: exactly the pairs the model scored)
+Writes submissions/archive/NN_<attempt_id>.tsv (matching_results format),
+submissions/archive/NN_<attempt_id>.candidates.tsv (candidate_pairs format: the candidate set the final models run inference over; see CAND_BAND)
 and submissions/NN_<attempt_id>.json (run manifest: fraction, sample hash, features, params, source hashes).
 CAND_BAND = (attempt, t) in the attempt keeps only pairs that attempt scored with p >= t, plus pairs it never scored
 (added later, e.g. by retrieval): the final models' band, decided and written as the candidate set.
-CAND_OWNER = True keeps each pool record only with its highest-probability S1 (ties -> lowest s1_idx), the first step
-of decide(), so the decisions are unchanged and the written candidate set is the one the decision actually ranks.
+CAND_MINP / CAND_TOPK / CAND_OWNER (research options, not used by the final attempt) cut the written set further using
+final probabilities.
 One row per test S1 in test_source1 order; ids S2-/S3- only, in a fixed order.
-Run src/er_validate.py on the Mac afterwards (it needs the raw test TSVs).
+Validate with the organisers' utils/validate_submission.py --check-ids (src/er_package.py runs it).
 """
 import argparse
 import hashlib

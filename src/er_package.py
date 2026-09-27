@@ -53,9 +53,9 @@ README = """# Business entity resolution pipeline ({attempt})
    corrections), a fine-tuned cross-encoder score, a second in-country model family (src/stack/), a cross-fitted
    LightGBM meta-model combining both families, an empty-address correction, and the France blend.
 4. **Output**: expected-F0.5 decision (one owner per pool record, best prefix per S1, floor 0.6) writes
-   matching_results.tsv; candidate_pairs.tsv is the final candidate set the decision ran on (pairs with final
-   probability > 0.001, each pool record kept with its highest-probability S1 only; the decisions are identical to
-   deciding on the full candidate set).
+   matching_results.tsv. candidate_pairs.tsv is the candidate set the final models run inference over: the pairs kept
+   by the stage-2 filter (stage-2 probability >= 0.001) plus the candidates added after it (retrieval route, extra
+   name keys, reverse retrieval, second model family).
 
 ## Models and licences
 - LightGBM 4.7.0 (MIT) for every tree model.
@@ -71,7 +71,18 @@ README = """# Business entity resolution pipeline ({attempt})
   and src/stack/kaggle/.
 - Second model family (src/stack/): its own environment, `src/stack/requirements.txt` (Python 3.11), run as described
   in src/stack/README.md; it writes cache/stack/.
-- Settings of every stage are in attempts/<id>/train.py; data and cache paths in config.yaml.
+- Settings of every stage are in attempts/<id>/train.py (loaded by src/common.py; only the ids named in the command
+  list are used); data and cache paths are in config.yaml (its device / train_file / test_file / metric / cv keys are
+  unused). src/er_feat3.py and attempts not named in the command list are earlier experiments, not part of this chain.
+- Data: the main pipeline finds the organisers' dataset anywhere under data/; the second model family expects it at
+  src/stack/dataset/{train,test}/ (e.g. `ln -s ../../data/<...>/dataset src/stack/dataset`) and its commands are run
+  from src/stack/. Run outside any other git checkout (paths resolve to the enclosing repository root).
+- Cross-encoder weights: intfloat/multilingual-e5-small revision 614241f622f53c4eeff9890bdc4f31cfecc418b3 and
+  intfloat/multilingual-e5-base revision d128750597153bb5987e10b1c3493a34e5a4502a (the revisions current on 26 Sep 2026).
+- GPU steps stop on a wall-clock budget in fp16, so a rerun reproduces the cross-encoder scores closely but not
+  bit-identically; the second family's final export step and two of its command lines are reconstructed from its
+  run logs (see src/stack/README.md, "Not reproducible from this code alone").
+- Libraries are permissively licensed except Unidecode (GPL-2.0), a transliteration library used by the second family.
 
 ## Setup
 ```
@@ -85,7 +96,8 @@ python src/prepare_raw.py                         # TSV -> parquet (cache/raw)
 {pre}{evalline}
 {predictline}
 ```
-`matching_results.tsv` = submissions/NN_{attempt}.tsv; `candidate_pairs.tsv` = submissions/NN_{attempt}.candidates.tsv.
+Then copy the outputs: `mkdir -p output && cp submissions/archive/NN_{attempt}.tsv output/matching_results.tsv && cp submissions/archive/NN_{attempt}.candidates.tsv output/candidate_pairs.tsv`
+and check them with the organisers' `utils/validate_submission.py --check-ids`.
 The attempt's settings are in `attempts/{attempt}/train.py`; defaults in `src/er_model.py`.
 """
 
