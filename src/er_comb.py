@@ -34,6 +34,7 @@ def build(cache, split, pairs, mod, country):
     for f in mod.FEATSC:
         x = pl.scan_parquet(cache / "feat" / f"{split}_{f}.parquet").join(b.lazy().select(KEYS), on=KEYS, how="semi").collect()
         x = x.drop([c for c in mod.EXCLUDEC if c in x.columns]).with_columns(pl.lit(1, pl.Int8).alias(f"_has_{f}"))
+        x = x.rename({c: f"{c}__{f}" for c in x.columns if c in b.columns and c not in KEYS})
         base += [c for c in x.columns if c not in KEYS and not c.startswith("_has_")]
         b = b.join(x, on=KEYS, how="left")
     has = pl.all_horizontal([pl.col(f"_has_{f}").is_not_null() for f in mod.FEATSC])
