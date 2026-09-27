@@ -9,7 +9,7 @@ W = 0.5
 RENAME = True
 VETO_WORDS = ["participations", "holding", "distribution", "international"]
 BROAD_WORDS = ["developpement", "france", "groupe"]
-DEPENDS = ["030n_fix", "027n_meta", "028f_ce", "024f_keys", "028k_ce", "028_ce", "024_keys", "023_comb", "019_band", "018_lexical", "017_route", "016_stage2b", "006_stage2", "005n_indic_nocoh", "005f_floor"]
+DEPENDS = ["030n_fix", "027n_meta", "024f_keys", "028k_ce", "028_ce", "024_keys", "023_comb", "019_band", "018_lexical", "017_route", "016_stage2b", "006_stage2", "005n_indic_nocoh", "005f_floor"]
 EVAL = "python src/er_eval.py 029f2_final --from-oof 030n_fix   # optional: 5-fold CV macro F0.5 of the final out-of-fold probabilities (US + India; France has no labels)"
 PRE_STEPS = [
     "python src/er_dict.py                              # native-script -> Latin token maps learned from training pairs",
@@ -45,15 +45,24 @@ PRE_STEPS = [
     "python src/er_feat.py --split train --tag _s10k && python src/er_feat2.py --split train --tag _s10k && python src/er_feat5.py --split train --tag _s10k",
     "python src/er_newpairs.py score 024_keys --split train          # out-of-fold route-classifier scores for the sampled S1",
     "python src/ce/ce_export.py records && python src/ce/ce_export.py pairs && python src/ce/ce_export.py band 018_lexical 0.003 0.997",
-    "# GPU (Kaggle, 2x T4): upload cache/ce/{records,pairs,band}; run src/ce/ce_train.py (e5-small, halves by folds {0,1} / {2,3,4}, ~170 min), then src/ce/ce_score.py (~22 min)",
-    "python src/ce/ce_export.py collect <dir with ce_{A,B}_{train,test}.parquet> ce",
-    "# GPU again for the e5-base score: same notebooks with ce_cfg.json {\"model\": \"intfloat/multilingual-e5-base\", \"lr\": 3e-5, \"budget_min\": 140}",
-    "python src/ce/ce_export.py collect <dir with the e5-base ce_{A,B}_{train,test}.parquet> ce_base   # second column of cache/feat/{split}_ce",
+    "# GPU (Kaggle, 2x T4): upload cache/ce/{records,pairs,band} as datasets; run src/ce/ce_train.py (e5-small, halves by folds {0,1} / {2,3,4}, ~170 min) and src/ce/ce_score.py (~22 min); download the scores to cache/ce/out/s",
+    "# GPU again for e5-base: the same two scripts with ce_cfg.json {\"model\": \"intfloat/multilingual-e5-base\", \"lr\": 3e-5, \"budget_min\": 140}; download to cache/ce/out/b",
+    "python src/ce/ce_export.py collect cache/ce/out/s ce && python src/ce/ce_export.py collect cache/ce/out/b ce_base   # cache/feat/{split}_ce",
     "python src/er_ce.py 028_ce && python src/er_ce.py 028k_ce --no-cv   # cross-encoder stack on the band (train CV + test on 024 pairs)",
-    "python src/er_extend.py union 028e_ce 028_ce 024_keys 023_comb   # train out-of-fold main file with the sampled extra candidates",
-    "# in-country stack model family: run the command list in src/stack/README.md (CPU steps + Kaggle GPU cross-encoders); it writes cache/stack/",
-    "python src/er_extend.py parity ce_par ce=<dir with the e5-small ce_{A,B}_test.parquet> ce_base=<dir with the e5-base ce_{A,B}_test.parquet>   # one half model per test S1, as on train",
-    "python src/er_meta.py 027h_meta                    # meta combination with cross-encoder and pair side-cars, US + India (train CV + test)",
-    "python src/er_france.py 029f2_final                  # France: logit blend with the stack family, renamed-pair max, decoy-word veto",
+    "python src/er_extend.py union 028e_ce 028_ce 024_keys 023_comb   # train file with the sampled extra candidates",
+    "python src/er_keys.py --split train --tag _all && python src/er_rtext.py --split train --parent 023_comb --tag _all   # extra candidates for every train S1",
+    "python src/er_newpairs.py union 024f_keys --split train",
+    "python src/er_feat.py --split train --tag _allk && python src/er_feat2.py --split train --tag _allk && python src/er_feat5.py --split train --tag _allk",
+    "ln -s 017_route cache/models/024f_keys",
+    "python src/er_newpairs.py score 024f_keys --split train          # out-of-fold route-classifier scores",
+    "python src/er_extend.py union 028f_ce 028_ce 024f_keys 023_comb   # meta-model train file with all extra candidates",
+    "python src/ce/ce_export.py extra test 018_lexical 028k_ce && python src/ce/ce_export.py extra train 018_lexical 028e_ce 028f_ce   # added pairs to score",
+    "# GPU: upload cache/ce/extra; run src/ce/ce_score.py with the e5-small models and score_cfg.json {\"train\": \"train_x1.parquet\", \"test\": \"test_x.parquet\"} -> cache/ce/out_x1/s, then {\"train\": \"train_x2.parquet\"} -> cache/ce/out_x2/s; with the e5-base models {\"train\": \"train_x1n.parquet\", \"test\": \"test_xn.parquet\"} -> cache/ce/out_x1/b, then {\"train\": \"train_x2n.parquet\"} -> cache/ce/out_x2/b",
+    "python src/er_extend.py parity ce_par ce=cache/ce/out/s ce_base=cache/ce/out/b && python src/er_extend.py parity ce_x_par ce=cache/ce/out_x1/s ce_base=cache/ce/out_x1/b   # test: one half model per S1",
+    "python src/ce/ce_export.py collectx ce=cache/ce/out_x1/s,cache/ce/out_x2/s ce_base=cache/ce/out_x1/b,cache/ce/out_x2/b && python src/ce/ce_export.py ce2   # cross-encoder side-car for all candidates",
+    "# in-country stack model family: run the command list in src/stack/README.md (own environment, src/stack/requirements.txt; CPU steps + Kaggle GPU cross-encoders); it writes cache/stack/",
+    "python src/er_meta.py 027n_meta                    # meta-model over both families, US + India (train CV + test)",
+    "python src/er_fix.py 030n_fix                      # empty-address correction",
+    "python src/er_france.py 029f2_final                # France: logit blend with the stack family, renamed-pair rule, decoy-word veto",
 ]
 PREDICT = "python src/er_predict.py 029f2_final --from-probs 029f2_final  # write submissions/archive/NN_029f2_final.tsv (+ .candidates.tsv)"
