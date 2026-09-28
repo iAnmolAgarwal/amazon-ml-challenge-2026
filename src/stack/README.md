@@ -3,8 +3,8 @@
 This folder is the second model family of the solution. It was developed during the challenge as a separate pipeline
 in its own environment (pandas, Python 3.11), so that the meta-model (`src/er_meta.py`) could combine two independently
 built families with different blocking, features and cross-encoders. It produces the three file sets the meta-model
-and the France blend read from `cache/stack/`. The package leaves these files out because of the upload size limit;
-`artifacts.sha256` at the package root lists the SHA256 of the files the submission used:
+and the France blend read from `cache/stack/`. The files used for the submission are shipped in `artifacts/stack/`
+(SHA256 in `SHA256SUMS`), so the main pipeline runs from the package without rerunning this folder:
 
 | Produced here | Name in `cache/stack/` | Content |
 |---|---|---|
@@ -96,7 +96,7 @@ The steps ran on a mix of machines:
 - Kaggle 2 x T4 ran the cross-encoders.
 
 ## Known reproduction gaps
-Regenerating the submission's files (SHA256 in `artifacts.sha256`) with the steps above has these limits:
+The shipped files in `artifacts/stack/` are the ones the submission used. Regenerating them with the steps above has these limits:
 1. **Export step (step 9).**
    - The export command was not logged.
    - `src/export_scores.py` rebuilds it from the documented format, the `SAVE_IC` cache written by `stack_ce.py eval`, and the `final_p_*.npz` written by `stack_ce.py test`.

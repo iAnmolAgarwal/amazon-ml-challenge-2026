@@ -62,7 +62,7 @@ PRE_STEPS = [
     "# GPU: upload cache/ce/extra; run src/ce/ce_score.py with the e5-small models and score_cfg.json {\"train\": \"train_x1.parquet\", \"test\": \"test_x.parquet\"} -> cache/ce/out_x1/s, then {\"train\": \"train_x2.parquet\"} -> cache/ce/out_x2/s; with the e5-base models {\"train\": \"train_x1n.parquet\", \"test\": \"test_xn.parquet\"} -> cache/ce/out_x1/b, then {\"train\": \"train_x2n.parquet\"} -> cache/ce/out_x2/b",
     "python src/er_extend.py parity ce_par ce=cache/ce/out/s ce_base=cache/ce/out/b && python src/er_extend.py parity ce_x_par ce=cache/ce/out_x1/s ce_base=cache/ce/out_x1/b   # test: one half model per S1",
     "python src/ce/ce_export.py collectx ce=cache/ce/out_x1/s,cache/ce/out_x2/s ce_base=cache/ce/out_x1/b,cache/ce/out_x2/b && python src/ce/ce_export.py ce2   # cross-encoder side-car for all candidates",
-    "# second model family (own environment, src/stack/requirements.txt): run the command list in src/stack/README.md; it writes cache/stack/ (SHA256 of the submission's files in artifacts.sha256)",
+    "mkdir -p cache/stack && cp -n artifacts/stack/*.parquet cache/stack/   # second model family outputs, shipped with this package (-n keeps files regenerated with src/stack/README.md)",
     "python src/single/build.py cache/r19s 006_stage2 006_stage2 train test && python src/single/fit.py A - 800   # single flat LightGBM on the stage-2 band (out-of-fold + test)",
     "python src/single/sidecar.py A a2 028f_ce 028k_ce   # its logits as a meta-model side-car (cache/feat/{split}_r19a2)",
     "python src/er_meta.py 027p_meta                    # meta-model over both families, US + India (train CV + test)",
