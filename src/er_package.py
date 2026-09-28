@@ -75,7 +75,8 @@ Run every command from this folder (`code/business_entity_resolution/`).
 1. **Data**: the organisers' TSVs are converted to parquet; names and addresses are normalized (native-script words mapped
    to Latin with a dictionary learned from training pairs only).
 2. **Blocking**: per country, word TF-IDF neighbours plus exact keys, character 3-gram retrieval, extra name keys and
-   reverse character retrieval: about 80.5M test pairs, 46 per S1.
+   reverse character retrieval. Word TF-IDF and exact keys give 78.9M test pairs (46 per S1); the other routes'
+   pairs are kept if a route classifier gives p > 0.001.
 3. **Matching**: stage-1 and stage-2 LightGBM pair models filter the raw pairs (stage-2 probability >= 0.001); on that
    band, LightGBM models (band model, retrieval-route classifier, lexical and generator-operator corrections), a
    fine-tuned cross-encoder score, a second model family (src/stack/), a cross-fitted LightGBM meta-model combining both
