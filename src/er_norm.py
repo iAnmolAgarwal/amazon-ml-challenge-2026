@@ -52,11 +52,13 @@ _MAPS = None
 
 
 def indic_maps():
-    """Token maps learned by er_dict.py from training gold pairs (empty maps if not built)."""
+    """Token maps learned by er_dict.py from training gold pairs (run python src/er_dict.py first)."""
     global _MAPS
     if _MAPS is None:
         p = Path(load_config()["cache_dir"]) / "dict" / "indic.json"
-        _MAPS = json.loads(p.read_text()) if p.exists() else {"name": {}, "addr": {}, "canon": {}}
+        if not p.exists():
+            raise SystemExit(f"{p} not found: run python src/er_dict.py first")
+        _MAPS = json.loads(p.read_text())
     return _MAPS
 
 

@@ -8,8 +8,7 @@ Outputs /kaggle/working/ce_{A,B}_{train,test}.parquet (s1_idx, pool_idx, ce = lo
 Run 27 Sep: ~4,200 pairs/s per GPU, ~22 min for 3.0M train + 2 x 2.8M test pairs.
 KIN / KOUT / KBS / KNW override the input dir, output dir, batch size and loader workers (for a local CPU check).
 Other pair files (src/ce/ce_export.py extra): add score_cfg.json to the inputs, e.g. {"train": "train_x1.parquet",
-"test": "test_x.parquet"} (only the listed splits are scored; train files need the half column). The band row-count
-check applies only without it.
+"test": "test_x.parquet"} (only the listed splits are scored; train files need the half column).
 """
 import os, sys, subprocess, json
 
@@ -51,8 +50,6 @@ for sp in [x for x in ["train", "test"] if x in FILES]:
     ls1 = s1.n.str.len().values + s1.a.str.len().values; lp = pool.n.str.len().values + pool.a.str.len().values
     del s1, pool
     pr = pd.read_parquet(f(FILES[sp]))
-    if len(sys.argv) <= 2:
-        assert len(pr) == {"train": 3008987, "test": 2815521}[sp], (sp, len(pr))
     if sp == "train":
         pr = pr[pr.half != hid]
     a = pr.s1_idx.values.astype(np.int64); b = pr.pool_idx.values.astype(np.int64)
@@ -84,3 +81,5 @@ if ng >= 2:
 else:
     rc = [subprocess.call([sys.executable, f"{KOUT}/ws.py", h] + xa) for h in "AB"]
 print("return codes", rc, flush=True)
+if any(rc):
+    raise SystemExit(f"a scoring worker failed: return codes {rc}")

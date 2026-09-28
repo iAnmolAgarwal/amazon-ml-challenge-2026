@@ -109,3 +109,5 @@ if ng >= 2:
 else:
     rc = [subprocess.call([sys.executable, "/kaggle/working/w.py", h, str(cfg["budget_min"] / 2), str(cfg["maxn"]), MN, LR, RV]) for h in "AB"]
 print("return codes", rc, flush=True)
+if any(rc):
+    raise SystemExit(f"a training worker failed: return codes {rc}")
