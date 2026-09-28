@@ -12,7 +12,8 @@ usage: python src/er_package.py submissions/NN_<attempt_id>.tsv [--validate-only
      code/business_entity_resolution/requirements.txt, requirements-gpu.txt, config.yaml
    With --final --team T it builds submissions/T_submission.zip instead, adding output/matching_results.tsv,
    output/candidate_pairs.tsv, the filled docs/Documentation_template.md, the run manifest (run_manifest.json),
-   ARTIFACTS (the second model family's outputs, as artifacts/stack/) and SHA256SUMS. It requires a clean
+   artifacts.sha256 (SHA256 of the files left out for the upload size limit: the second model family's outputs and
+   the final probability table) and SHA256SUMS. It requires a clean
    .validation.txt for these exact files, the run manifest NN_<attempt_id>.json with matching source hashes, and no
    template placeholders.
 Never includes data, caches other than ARTIFACTS, credentials or git metadata.
@@ -66,11 +67,11 @@ Run every command from this folder (`code/business_entity_resolution/`).
 - `src/`: the pipeline (Python modules run in the order below); `src/ce/`: cross-encoder GPU scripts; `src/single/`: the
   single flat LightGBM used as a meta-model input; `src/stack/`: the second model family (own environment and README).
 - `attempts/<id>/train.py`: the settings of each stage named in the command list (loaded by `src/common.py`).
-- `artifacts/stack/`: the second model family's outputs used by the submission (13 parquet files, about 455 MB), so the
-  second family does not have to be rerun (`src/stack/README.md` regenerates them). The main family's own GPU steps
-  still run on Kaggle (table below).
-- `run_pipeline.sh`: the command list below as a script, in phases split at the GPU steps.
-- `artifacts/final/final_probs.parquet`: the final probability of every candidate pair, for the quick check below.
+- `artifacts.sha256`: SHA256 of the files the submission used that this package leaves out because of the portal's
+  upload size limit: the second model family's 13 output files (`cache/stack/`, about 455 MB; `src/stack/README.md`
+  regenerates them) and the final probability table (`final_probs.parquet`, 89 MB). The team can provide them on
+  request; `sha256sum -c artifacts.sha256` checks regenerated or provided files.
+- `run_pipeline.sh`: the command list below as a script, in phases split at the manual steps (GPU, second family).
 - `config.yaml` (data and cache folders, seed), `requirements.txt` (CPU), `requirements-gpu.txt` (GPU steps).
 - `run_manifest.json`: the record of the final step (git commit, SHA256 of every source file, of the attempt settings
   and of both outputs, library versions, runtime). `SHA256SUMS`: every file of the package (check with `sha256sum -c SHA256SUMS`).
@@ -117,7 +118,7 @@ in the file.
 - GPU steps: Kaggle notebooks with 2x T4 and the default image (`requirements-gpu.txt`), about 15-20 GPU-hours in
   total (table below). The notebooks find their inputs under `/kaggle/input/**`; upload the listed folders as datasets.
 - Second model family (src/stack/): Python 3.11, `src/stack/requirements.txt`, run from `src/stack/` as described in
-  src/stack/README.md; its outputs are shipped in `artifacts/stack/`.
+  src/stack/README.md; it writes `cache/stack/` (the submission's files are listed in `artifacts.sha256`).
 - Data: place the organisers' `dataset/` folder (train/ and test/ TSVs) anywhere under `data/`; the second family
   expects it at `src/stack/dataset/{{train,test}}/` (e.g. `ln -s ../../data/<...>/dataset src/stack/dataset`).
 
@@ -141,7 +142,7 @@ Keep `cache_dir: cache` in `config.yaml`: several steps use the relative path `c
 `cache/` a symlink).
 
 ## Reproduce end to end
-`bash run_pipeline.sh 1`, then the GPU step it prints, `bash run_pipeline.sh 2`, and so on; the last phase copies both
+`bash run_pipeline.sh 1`, then the manual step it prints, `bash run_pipeline.sh 2`, and so on; the last phase copies both
 outputs to `../../output/` and runs the organisers' validator. The same commands, in order:
 ```
 python src/prepare_raw.py                         # TSV -> parquet (cache/raw)
@@ -154,8 +155,9 @@ and check them with the organisers' validator (`utils/validate_submission.py` in
 The attempt's settings are in `attempts/{attempt}/train.py`; defaults in `src/er_model.py`.
 
 ## Quick check of the last step (about a minute)
-`artifacts/final/final_probs.parquet` holds every candidate pair with its final probability and whether the decision
-considers it. With the organisers' dataset under `data/`:
+`final_probs.parquet` (left out for the size limit; SHA256 in `artifacts.sha256`, available from the team on request)
+holds every candidate pair with its final probability and whether the decision considers it. With it in this folder and
+the organisers' dataset under `data/`:
 ```
 python src/verify_final.py        # rebuilds both TSVs into verify/ and compares their SHA256 with output/
 ```
@@ -187,13 +189,14 @@ What has been rerun:
 - An independent rebuild from the raw data on a second machine reproduced the blocking exactly (98,021,508 train pairs,
   same dictionary, same per-S1 oracle), stage 1 (CV 0.97005 vs 0.97008) and stage 2 (0.97425 vs 0.97423); the small
   differences are floating-point variation between CPU types.
-- From this unpacked package (28 Sep), the last six steps (`ce_export.py ce2`, `er_meta.py 027p_meta`,
+- From the package code (28 Sep, unpacked, with the second family's files in place), the last six steps (`ce_export.py ce2`, `er_meta.py 027p_meta`,
   `er_fix.py 030p_fix`, `er_france.py 029f5_final`, `er_fix.py 030q_fix --no-cv`, `er_predict.py 029f6_final
   --from-probs 030q_fix`) were rerun from the cached inputs of the earlier steps into an empty output folder: every
   intermediate probability file and both output TSVs came out byte-identical (meta-model CV 0.99177 reproduced).
 - Not rerun after the fact: the GPU steps. They stop on a wall-clock budget in fp16, so a rerun reproduces the
-  cross-encoder scores closely but not bit-identically. The second family's outputs are shipped; regenerating them
-  has the limits listed in src/stack/README.md ("Known reproduction gaps").
+  cross-encoder scores closely but not bit-identically. The second family's outputs are left out for the size limit
+  (SHA256 in `artifacts.sha256`); regenerating them has the limits listed in src/stack/README.md ("Known reproduction
+  gaps").
 
 ## Notes
 - Every folder in `attempts/` is used by the command list. Module options that no shipped attempt sets are research
@@ -222,7 +225,7 @@ for split in ("train", "test"):
 
 def runner(attempt, pre, predict):
     """run_pipeline.sh: the README command list as bash phases, split at the manual GPU (Kaggle) steps."""
-    phases, gpu, cur, notes = [], [], ["python src/prepare_raw.py"], []
+    phases, cur, notes = [], ["python src/prepare_raw.py"], []
     for c in pre:
         if c.lstrip().startswith("#"):
             notes.append(c.lstrip()[1:].strip())
@@ -239,8 +242,8 @@ def runner(attempt, pre, predict):
             "if [ -n \"$V\" ]; then python \"$V\" --matching ../../output/matching_results.tsv --candidate ../../output/candidate_pairs.tsv --test-dir \"$T\" --check-ids; fi"]
     phases.append((cur, []))
     out = ["#!/usr/bin/env bash",
-           "# The command list of README.md as a script, in phases split at the manual GPU steps (Kaggle notebooks).",
-           f"# usage: bash run_pipeline.sh <phase 1-{len(phases)}>; after each phase except the last, do the GPU step it prints.",
+           "# The command list of README.md as a script, in phases split at the manual steps (Kaggle GPU notebooks, second family).",
+           f"# usage: bash run_pipeline.sh <phase 1-{len(phases)}>; after each phase except the last, do the manual step it prints.",
            "# Run from code/business_entity_resolution/ with the organisers' dataset under data/; python = the main environment.",
            "set -euo pipefail", 'cd "$(dirname "$0")"', ""]
     for i, (cmds, gnotes) in enumerate(phases, 1):
@@ -248,7 +251,7 @@ def runner(attempt, pre, predict):
         out += [f"  {c}" for c in cmds]
         if gnotes:
             out.append("  cat <<'GPU'")
-            out.append(f"Phase {i} done. Next, the GPU step (Kaggle, see README), then: bash run_pipeline.sh {i + 1}")
+            out.append(f"Phase {i} done. Next, the manual step below (see README), then: bash run_pipeline.sh {i + 1}")
             out += [f"- {g}" for g in gnotes]
             out.append("GPU")
         else:
@@ -352,13 +355,11 @@ def main():
             man_z = dict(man, src_sha256={k: v for k, v in man["src_sha256"].items() if k in SRC_FILES or k == "train.py"})
             zf.writestr(base + "run_manifest.json", json.dumps(man_z, indent=1))
             probs = mt.with_suffix(".probs.parquet")
-            zf.write(probs, base + "artifacts/final/final_probs.parquet", compress_type=zipfile.ZIP_STORED)
             src = Path(load_config()["cache_dir"]) / ARTIFACTS[0]
             arts = sorted(f for g in ARTIFACTS[1:] for f in src.glob(g))
-            if len(arts) != 13:
-                raise SystemExit(f"expected 13 second-family files in {src}, found {len(arts)}")
-            for f in arts:
-                zf.write(f, base + f"artifacts/{ARTIFACTS[0]}/{f.name}", compress_type=zipfile.ZIP_STORED)
+            if len(arts) != 13 or not probs.exists():
+                raise SystemExit(f"expected 13 second-family files in {src} and {probs.name}")
+            zf.writestr(base + "artifacts.sha256", "".join(f"{sha256(f)}  cache/{ARTIFACTS[0]}/{f.name}\n" for f in arts) + f"{sha256(probs)}  final_probs.parquet\n")
     if a.final:
         with zipfile.ZipFile(tmp, "a", zipfile.ZIP_DEFLATED) as zf:
             rel = lambda n: n[len(base):] if n.startswith(base) else "../../" + n
@@ -369,7 +370,7 @@ def main():
     if hits:
         tmp.unlink()
         raise SystemExit(f"names or banned wording in: {hits}")
-    if any(re.search(r"(\.pem|credentials|\.env|/cache/|/data/)", n) for n in names) or any(n.endswith(".parquet") and not re.search(r"/artifacts/(stack|final)/", n) for n in names):
+    if any(re.search(r"(\.pem|credentials|\.env|/cache/|/data/)", n) or n.endswith(".parquet") for n in names):
         tmp.unlink()
         raise SystemExit("forbidden file in zip")
     tmp.replace(z)

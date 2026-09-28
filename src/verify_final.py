@@ -1,7 +1,9 @@
-"""Quick check of the last step without rerunning the chain: rebuild both output TSVs from the shipped final
-probabilities and compare them with output/.
+"""Quick check of the last step without rerunning the chain: rebuild both output TSVs from the final probability table
+and compare them with output/.
 
-usage: python src/verify_final.py [--probs artifacts/final/final_probs.parquet] [--attempt 029f6_final] [--out verify]
+usage: python src/verify_final.py [--probs final_probs.parquet] [--attempt 029f6_final] [--out verify]
+The table is left out of the package because of the upload size limit (SHA256 in artifacts.sha256; the team can
+provide it).
 
 final_probs.parquet (written by src/er_predict.py as NN_<attempt>.probs.parquet) has every candidate pair (s1_idx,
 pool_idx), its final probability (prob) and whether the decision considers it (decided). Ids come from the organisers'
@@ -22,7 +24,7 @@ from er_predict import decide_and_write
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--probs", default=str(ROOT / "artifacts" / "final" / "final_probs.parquet"))
+    ap.add_argument("--probs", default=str(ROOT / "final_probs.parquet"))
     ap.add_argument("--attempt", default="029f6_final")
     ap.add_argument("--out", default=str(ROOT / "verify"))
     a = ap.parse_args()
