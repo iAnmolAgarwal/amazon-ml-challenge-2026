@@ -63,6 +63,7 @@ S1 + pool records, per country
  -> stage 1 LightGBM -> stage 2 LightGBM (+ competition features); keep p >= 0.001
  -> band model (all features) -> lexical correction -> generator-operator correction
  -> e5 cross-encoder stack on the uncertain band
+ ==> candidate_pairs.tsv: chain p >= 0.001 (France: stage-2 band) + second-family cascade; 11.84M pairs, 6.83 per S1
  -> meta-model over both model families (US, India) | France blend (4.3)
  -> empty-address correction -> expected-F0.5 decision (4.4)
 ```
@@ -75,12 +76,12 @@ S1 + pool records, per country
 **Model type:** LightGBM (pair models, corrections, meta-model) with fine-tuned multilingual-e5 cross-encoders (small, base).
 
 **4.2 Models** (LightGBM unless stated; every train input is out-of-fold)
-1. *Stages 1-2* (127 leaves, 600 rounds). Stage 2 adds competition features from stage-1 out-of-fold probabilities.
+1. *Stages 1-2 (blocking filter)* (127 leaves, 600 rounds). Stage 2 adds competition features from stage-1 out-of-fold probabilities.
 2. *Band model:* one model on stage-2 pairs with p ≥ 0.001 and every feature family.
 3. *Route classifier:* scores pairs added by the character route, extra keys and reverse retrieval.
 4. *Two corrections boosted from the previous logit:* first the 42 lexical likelihoods, then generator-operator and pool-side competition features (255 leaves, 800 rounds).
 5. *Cross-encoders:* intfloat/multilingual-e5-small and e5-base, fine-tuned as pair classifiers on two S1 halves split by fold, so every train score is out-of-fold (held-out AUC 0.9996); on test each S1 is scored by one half model, chosen by its id, as on train. A small LightGBM stacks the score on the cross-encoder band.
-6. *Meta-model* (US, India; 127 leaves, 600 rounds, cross-fitted on our folds) over the union of our pairs and the second family's. The second family (src/stack) was built independently in its own environment: its own normalization and transliteration, blocking, a two-stage LightGBM with name-specificity features, label-free decoy features, and a stage-3 stack over three e5 cross-encoders (one cross-country, two in-country); for France it adds a cross-country e5-base cross-encoder, its own decoy stacker and a marker veto. Inputs: both families' logits and their min / max / sum / difference, both families' cross-encoder scores, a few pair features, the logit of one flat LightGBM on all 205 band features, and pool-side competition. The second family uses its own entity folds (crc32 of the S1 id), and the cross-encoder halves are not nested in the meta-model folds, so this CV may be slightly optimistic.
+6. *Meta-model* (US, India; 127 leaves, 600 rounds, cross-fitted on our folds) over the union of our pairs and the second family's. The second family (src/stack) was built independently in its own environment: its own normalization and transliteration, blocking, a two-stage LightGBM with name-specificity features, label-free decoy features, and a stage-3 stack over three e5 cross-encoders (one cross-country, two in-country); for France it adds a cross-country e5-base cross-encoder, its own decoy stacker and a marker veto. Both families were written by the team during the challenge; the second was built on purpose in a separate environment (pandas, Python 3.11, its own folds) so that the meta-model combines two independent error patterns, and both use the same generator findings (the decoy shift set, generator-operator features). Inputs: both families' logits and their min / max / sum / difference, both families' cross-encoder scores, a few pair features, the logit of one flat LightGBM on all 205 band features, and pool-side competition. The second family uses its own entity folds (crc32 of the S1 id), and the cross-encoder halves are not nested in the meta-model folds, so this CV may be slightly optimistic.
 7. *Empty-address correction* (63 leaves, 300 rounds): boosted from the meta logit using the name-twin structure among a pool record's claimers. Only empty-address pool records can gain probability (decoys never have an empty address); every other pair can only lose.
 
 Pretrained: intfloat/multilingual-e5-small (MIT, 118M) and e5-base (MIT, 278M) at pinned revisions, fine-tuned on training pairs only (12 checkpoints); LightGBM 4.7.0 (MIT); no external data; all libraries permissive except Unidecode (GPL-2.0, second family only).

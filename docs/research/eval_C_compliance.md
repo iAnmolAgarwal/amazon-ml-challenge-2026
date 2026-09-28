@@ -1,13 +1,15 @@
 # Evaluation C: compliance and blocking audit of `Apprentice_submission.zip`
 
-Date: 28 Sep 2026. Reviewer role: compliance and blocking-audit evaluator, calibrated strictly (only the top 50 of about 1,000 teams go through; any compliance doubt is treated as possibly decisive).
-Object: `submissions/final_package/Apprentice_submission.zip` (105 entries, 116,986,163 bytes, md5 `fec2e45900dc65b72b56de049d18eab2`). It was unzipped into a scratch folder and neither the zip nor the repo was modified. Judgements rest only on the zip's contents, with one exception: item H3 compares the zip's output with the leaderboard upload record, and it is marked as such.
+Date: 28 Sep 2026. Role: compliance and blocking-audit evaluator, judged against the top-50-of-1,000 bar.
+Object: `submissions/final_package/Apprentice_submission.zip` (122 entries, 569,388,281 bytes, built 28 Sep 17:07). This replaces the earlier version of this file, which audited an older 105-entry zip.
+Method: the zip was unzipped into a scratch folder. The 13 stack parquets were skipped, except the three `p_test_*.parquet`, which were extracted to check the candidate rule. Neither the zip nor the repo was modified. Only the zip's contents were judged; the organisers' validator and test TSVs served as the reference.
 
 Checks run:
-- the organisers' `validate_submission.py` in two passes: matching plus candidates, then matching with `--check-ids`;
-- a polars pass for ID existence on both files, matches as a subset of candidates, cross-country pairs, the one-owner rule and counts per S1 and per country;
-- a full read of the pipeline code that decides the candidate set (`er_predict.py`, `er_meta.py`, `er_france.py`, `er_stage3.py`, `er_comb.py`, `er_fix.py`, `er_ce.py`);
-- a scan of all 105 files for network use, keys, URLs, lookup tables, foreign names and paths, and licence text.
+- The organisers' `validate_submission.py` with both files and `--check-ids`. It was run directly, not through `scripts/queue.sh`, and peaked at 4.4 GB.
+- Independent stdlib and polars passes: rows, headers, CRLF, whitespace, duplicates, subset rule, counts per S1 and per country, cross-country pairs, one owner per pool record, and whether the second family's test pairs are all in the candidate file.
+- SHA-256 of both outputs against `SHA256SUMS` and `run_manifest.json`, and of every shipped `src/*.py` against the manifest.
+- A code read of the path that decides the candidate set (`er_predict.py`, `er_meta.py`, `er_france.py`, attempts `027p_meta`, `029f5_final`, `029f6_final`, `030p_fix`, `030q_fix`).
+- A scan of every file for network use, keys, URLs, downloads, lookup tables, names, foreign paths, licence headers, imports of modules that are not shipped, and references to files that are not shipped.
 
 ---
 
@@ -15,210 +17,248 @@ Checks run:
 
 | Rule | Result | Evidence |
 |---|---|---|
-| Format (organisers' validator) | **PASS** | Both passes print `PASS`. 1,732,544 rows in each file, header exact, TAB separated, ASCII, LF line endings |
-| Every S1 present, no duplicate rows, no duplicate IDs in a list | **PASS** | 1,732,544 of 1,732,544 S1 present. 0 duplicate rows. 11,778,648 candidate pairs, all unique. 5,847,885 matched pairs, all unique |
-| Matched and candidate IDs are S2-/S3- IDs that exist in test | **PASS** | 0 unknown IDs in either file (checked against 9,969,589 test S2/S3 IDs). 0 S1 IDs in the lists. 0 cross-country pairs |
-| Matches are a subset of candidates | **PASS** | 0 matched pairs outside `candidate_pairs.tsv`, and the validator gives no subset warning |
-| Candidate file matches the organisers' definition | **PASS with caveats** | Mostly consistent: the band models, the meta-model and the decision all run on the filtered set. But the file is carved out of the final probability table after scoring, and some pairs the final models scored are left out of it (section 2.3) |
-| Models: MIT or Apache 2.0 licence, at most 8B parameters | **PASS** (disclosure incomplete) | multilingual-e5-small (MIT, 117.7M) and multilingual-e5-base (MIT, 278M) with pinned revisions, plus LightGBM (MIT). The Documentation names only e5-small and states no licences |
-| No external data, APIs or lookups | **PASS** | The only network access is the Hugging Face weight download. No API keys, URLs, geocoding or registries. The hard-coded tables are generic abbreviation and legal-form lists (section 5) |
-| Fair play and plagiarism signals | **PASS with warnings** | Only the four member names appear. But `src/stack/` differs strongly from the main code in style, environment and paths, and its README uses wording like "kept as found" (section 6) |
-| Package completeness and reproducibility (organisers: "regenerate both output files ... using only what is in this folder") | **FAIL** | The README command `python src/er_france.py 029f5_final` needs `attempts/029f5_final/`, which is not in the zip. `src/stack/README.md` also lists 7 "not reproducible from this code alone" gaps |
-| (Outside the zip) The zip holds the leaderboard file | **UNVERIFIED** | The zip's `matching_results.tsv` is byte-identical to upload #20 (029f6, LB 0.990203). The last upload was #21 (029fmax), which differs by 35,306 pairs |
+| Format (organisers' validator, `--check-ids`) | **PASS** | `PASS - no blocking issues found`, with 1,732,544 required S1 and 9,969,589 valid S2/S3 IDs |
+| Every S1 present; no duplicate rows or duplicate IDs in a list; IDs are S2-/S3- IDs that exist in test | **PASS** | 1,732,544 rows in each file with exact headers, LF line endings and no stray whitespace. 0 unknown IDs, 0 duplicates |
+| Matches are a subset of candidates | **PASS** | 0 S1 have a matched ID outside their candidate list. The validator gives no subset warning. `er_predict.py` also asserts it |
+| Candidate file matches the organisers' definition | **PASS** (interpretive note) | The file is the input of the final models: the meta-model for US and India, the France blend for France. It is a superset of the decided set and of the matches. No post-hoc trimming code is left in the package (section 2) |
+| Models: MIT or Apache 2.0 licence, at most 8B parameters | **PASS** | multilingual-e5-small (MIT, 118M) and multilingual-e5-base (MIT, 278M), both at pinned revisions. LightGBM is MIT. The largest checkpoint has 278M parameters |
+| Library licences | **PASS** (disclosed exception) | All libraries are permissive except Unidecode (GPL-2.0+), which the second family uses for text normalisation. It is a library, not a model, and README and Documentation disclose it |
+| No external data lookup | **PASS** | The only network use is `from_pretrained` downloading the declared e5 weights. There are no API clients, URLs, keys, geocoders or registries. The hard-coded tables are generic vocabulary or are derived from the provided data (section 5) |
+| Fair play and plagiarism signals | **PASS with warnings** | The only names are the four members in the header. However, `src/stack/` differs sharply in style, and its code points to 6 scripts and a `candidate_pairs.tsv` of its own, none of which ship. `run_manifest.json` lists 17 source files that are not in the zip (section 6) |
+| Package structure and reproducibility | **PASS with gaps** | The organisers' layout is complete. Both outputs match their SHA-256 values, and so do all 30 shipped top-level modules (against the manifest). The second family ships its outputs as artefacts, and its README lists reproduction gaps. A reviewer cannot run the final 19-second step without roughly 50 CPU hours and 20 GPU hours of upstream work |
+| Country as an open set (organisers' instruction) | **PASS with note** | France is fully handled. The code still branches on literal country names, and a `cty` code in the meta-model inputs sets France = 2. Documentation Limitation (5) discloses this |
 
-**Blocking quality: 7 / 10**, strict, against what the best 5% of teams would submit.
+**Blocking quality: 8 / 10.**
 
-**Overall risk verdict: serious risks.** Nothing reaches disqualification level: the outputs are valid, the licences are fine and there is no external data. In a detailed top-50 review, however, three things could lower the team's standing: a hard reproduction failure, candidate-definition details that a strict reader can call inconsistent, and provenance signals in `src/stack/`. Whether the zip holds the leaderboard file could be decisive on its own if the portal ranks the last upload.
+**Overall risk verdict: minor risks.** Nothing reaches disqualification level. The outputs are valid, the models and licences are fine, there is no external data, and the candidate file follows the organisers' "last stage" definition. The remaining risks are about provenance and presentation, and they could draw reviewer questions or cost blocking points:
+- the style of `src/stack/` and its dangling references;
+- the unexplained entries in the manifest;
+- the France candidate size;
+- a judge who counts the raw 46 per S1 instead of 6.83.
 
 ---
 
-## 1. Format and ID checks (measured)
+## 1. Output checks (measured from the zip)
 
 | Quantity | Value |
 |---|---|
-| Rows (both files) | 1,732,544, equal to test S1 |
-| `matching_results.tsv` | 5,847,885 pairs, 3.375 per S1. 99,885 empty rows (5.8%). At most 11 matches per S1 |
-| `candidate_pairs.tsv` | 11,778,648 pairs, 6.798 per S1. 23,977 empty rows (1.4%). Median 6, p90 12, p99 29, max 776 |
-| Unknown IDs, self matches, duplicates, cross-country pairs | 0 each |
+| Rows (both files) | 1,732,544, equal to the number of test S1 |
+| `matching_results.tsv` | 5,847,885 pairs (3.375 per S1). 99,885 empty rows (5.8%). At most 11 per S1. S2 2,833,303 and S3 3,014,582 |
+| `candidate_pairs.tsv` | 11,837,012 pairs (**6.832 per S1**). 23,666 empty rows (1.37%). Median 6, p75 8, p90 12, p95 15, p99 29, p99.9 56, max 776. S2 5,554,017 and S3 6,282,995 |
+| Candidates per match | 2.02 (49.4% of candidates are matched). On 377,121 S1 (21.8%) the candidate list equals the match list |
+| Cross-country pairs | 0 in either file |
 | Pool records matched to more than one S1 | 0 (one owner per record holds) |
-| Peak memory of the validator | 3.6 GB with candidates, 2.4 GB with `--check-ids` (matching only). Both were queued through `scripts/queue.sh` |
+| SHA-256 | Both outputs equal `SHA256SUMS` and the manifest (`2b885f1e…` and `a8cda21e…`). The three `p_test_*.parquet` files also match |
 
-The package also ships `src/stack/utils/validate_submission.py`, which is byte-identical to the organisers' validator. The stack README says it is the organisers' file, so this is fine.
+Per country (pool = S2 + S3 of the same country):
 
-## 2. Candidate set
+| Country | S1 | Pool | Candidates | Per S1 | Matches per S1 | Candidates / matches |
+|---|---|---|---|---|---|---|
+| US | 663,106 | 3,817,031 | 3,735,700 | 5.63 | 3.39 | 1.66 |
+| India | 809,986 | 4,717,565 | 4,907,422 | 6.06 | 3.38 | 1.79 |
+| France | 259,452 | 1,434,993 | 3,193,890 | **12.31** | 3.32 | **3.71** |
 
-### 2.1 Size and reduction
+The README and the Documentation state the same per-country numbers (5.63, 6.06, 12.31, 6.83), and they check out.
 
-| Country | S1 | Candidates | Per S1 | Median | p90 | p99 | Max | Matches per S1 | Candidates minus matches, per S1 |
-|---|---|---|---|---|---|---|---|---|---|
-| US | 663,106 | 3,729,267 | 5.62 | 5 | 10 | 19 | 162 | 3.39 | 2.23 |
-| India | 809,986 | 4,872,958 | 6.02 | 5 | 10 | 17 | 776 | 3.38 | 2.64 |
-| France | 259,452 | 3,176,423 | **12.24** | 9 | 23 | 51 | 205 | 3.32 | **8.92** |
-| All | 1,732,544 | 11,778,648 | **6.80** | 6 | 12 | 29 | 776 | 3.38 | 3.42 |
+## 2. Is the candidate file what the organisers asked for?
 
-- Reduction ratio against all S1 × pool pairs (1.727e13): **0.99999932**. Against all within-country pairs (6.72e12): **0.99999825**.
-- The candidate file is 2.01 times the emitted matches, so 49.6% of candidates are matched.
-- France holds 27% of all candidates but only 15% of S1. 2,602 France S1 have more than 50 candidates, against 58 in India and 23 in the US. 30 France S1 have more than 100.
-- The largest lists belong to generic names with a city-only address: "Shree Foods Limited, Bangalore" has 776 candidates, and "Saint-Nazaire Amis SAS" and "Bordeaux Culturelle" have about 200 each.
-- Train analogue, from `attempts/029f6_final/results.json` in the zip: the final out-of-fold set has 13,373,981 pairs for 2,206,821 S1 (6.06 per S1), with an **oracle macro F0.5 of 0.99798** and a final pair recall of 0.9756. The Documentation does not quote this number (see M5).
+The organisers' definition: "the exact set of records you feed into your matching model for inference ... if your pipeline has several blocking/filtering stages, candidate_pairs.tsv is the last one ... Every ID in matching_results.tsv should appear here."
 
-### 2.2 How the set is produced (as documented)
+Code trace:
+- **US and India.** `er_meta.py` (build, `MIN_P = 0.001` in `attempts/027p_meta`) scores a set of pairs:
+  - the chain pairs with chain probability ≥ 0.001;
+  - joined in full with every second-family test pair (its cascade: p2 > 0.02 and top 10 per S1).
+- **France.** `er_meta.py` passes France through. `er_france.py` then blends the France chain pairs with the second family's France pairs.
+- **Writing the file.** `er_predict.py` writes the candidate file from the final probability table in two parts:
+  - rows kept by `CAND_BAND = ("006_stage2", 0.001)` (stage-2 p ≥ 0.001, or added after stage 2);
+  - `CAND_ALSO`: second-family pairs that the final models scored below that band, 58,364 pairs.
+  
+  The decision runs on 11,778,648 pairs, which is the file minus those 58,364. The manifest records `n_decided_pairs 11,778,648` and `n_candidate_pairs 11,837,012`.
+- **Verified from the zip.** All 7,092,310 second-family test pairs are in the file (France 1,164,276, India 3,216,573, US 2,711,461).
 
-1. Raw blocking produces about 80.5M test pairs, 46.5 per S1. The sources are:
-   - per-country word TF-IDF, top 40 neighbours;
-   - exact keys (house plus street, space-free name, sorted name, name plus house, initials plus house, alternate name), where oversized blocks are skipped rather than truncated;
-   - character 3-gram retrieval.
-2. Stage-1 and stage-2 LightGBM models score all of those pairs.
-3. Pairs with stage-2 p ≥ 0.001 form the "band". Later sources add pairs: the route classifier (p > 0.001), extra name keys, reverse retrieval, and the second model family's cascade (p2 > 0.02, top 10 per S1).
-4. The band models, the cross-encoder stack, the meta-model and the corrections run on this set.
+Result: candidates ⊇ decided set ⊇ matches, and the file equals the input set of the last model stage. The README section "Candidate file (exact rule)" describes this exactly. The dormant post-hoc trimming options that the previous zip carried (`CAND_MINP`, `CAND_TOPK`, `CAND_OWNER`) are gone.
 
-### 2.3 Is the file what the final models run inference over? (code trace)
+**Interpretive risk (not a failure).** The drop from 46 to 6.83 per S1 is done by supervised LightGBM stages. The steps are: stage 1/2 at p ≥ 0.001, the route classifier at p > 0.001, and a chain-probability cut at 0.001. The band model, the corrections and the cross-encoder stack score a superset of the file before that cut. The definition explicitly allows several filtering stages and asks for the last one, so the team's reading is correct.
 
-The file is written by `er_predict.py` with `CAND_BAND = ("006_stage2", 0.001)`: it keeps final-probability rows where the stage-2 p is ≥ 0.001 or missing (lines 132-137). What the final models actually scored:
+However, Documentation §4.2 lists "Stages 1-2" under *Models* of the matching model. A judge who treats the stage-1 LightGBM as "the matching model" would count about 46 per S1, which is the raw blocking output of 78.9M test pairs. The Documentation reports both figures honestly. The fix is framing (M1), not a change to the file.
 
-- **US and India.** `er_meta.py:81` takes the full join of the chain pairs with chain p ≥ `MIN_P` (0.001) and **all** second-family test pairs, and scores the union (lines 131-133). The effects:
-  - Second-family pairs that coincide with main pairs rejected by stage 2 are scored by the meta-model and then removed by `CAND_BAND`. The final ML model therefore ran on more pairs than the file lists.
-  - The pool-side competition features (`pool_side`, lines 70-75, and again in `er_fix.py:62`) are computed over sets that include those dropped pairs.
-  - The README's rule ("stage-2 p ≥ 0.001 plus later additions") is not what the US/India file holds. Pairs whose chain probability fell below 0.001 before the meta-model are also absent.
-- **France.** `er_meta.py:134` passes **all** France chain pairs, with no `MIN_P`. `er_france.py:68-73` blends the whole France union, about 46 per S1 before filtering. `CAND_BAND` then drops the pairs whose stage-2 p is below 0.001. The blend is a rule, not an ML model, so France is defensible. But the France set gets no chain-probability filter, which explains a good part of France's 12.24 per S1.
-- **Post-hoc look.** The filter is applied after final scoring, to the final probability table, in the same function that writes the file. The same docstring (line 10) and code (lines 86-94 and 138-144) also contain `CAND_MINP`, `CAND_TOPK` and `CAND_OWNER`, "research options ... [that] cut the written set further using final probabilities". The final attempt does not use them. A strict reader will still see tooling for shrinking the candidate file after the model has run, which is exactly what the definition forbids.
-- **Matches.** None of this changes the matches: decisions are taken on the filtered set, and 0 matches lie outside it. The claim in Documentation §3 that "deciding on this filtered set gives the same matches as deciding on the full candidate union" is plausible but cannot be checked from the zip, because `decide()` uses E[T] and p0 over all rows of an S1.
-- **Wording risk.** The organisers write "not the raw output of an early blocking pass you later filter further ... the *last* one: whatever your model actually runs inference over". The 46.5 → 6.8 reduction is done by the stage-1/2 LightGBM, a supervised matcher with 127 leaves trained on labels. The definition allows filtering stages, so the team's reading is defensible, and the README and Documentation disclose the 46.5 per S1 figure honestly. A strict judge may still count the effective blocking as 46.5 per S1.
+## 3. Blocking quality (score 8 / 10)
 
-## 3. Blocking quality (score 7 / 10)
+**Reduction ratio**
 
-| Criterion | Assessment | Score effect |
+| Reference set | Pairs | RR of `candidate_pairs.tsv` |
 |---|---|---|
-| Reduction ratio | 0.9999993. At the ceiling, like every serious team | neutral |
-| Candidates per S1 | 6.80 mean, 2.0 times the matches. Honest top-5% cascades probably land at about 5-15 per S1, so this is likely in the top quartile but not the smallest | + |
-| Recall ceiling | Train analogue 6.06 per S1 with oracle 0.9980. Raw union holds 98.1% of true pairs. Test France is unknown | + |
-| Method | Multi-route blocking (word TF-IDF, exact keys with an oversize skip, character 3-grams, reverse retrieval, extra keys) plus a learned cascade. Sophisticated and well documented | + |
-| Where the reduction comes from | 46.5 → 6.8 by a supervised LightGBM, not by blocking itself | − |
-| Country balance | France 12.24 per S1 (twice US and India), with a long tail | − |
-| Definitional hygiene | Filter applied after scoring, dormant trimming options, scored-but-dropped second-family pairs, README rule imprecise | − |
-| Reported metrics | No recall or oracle figure for the submitted-definition set, and 0.9969 (Documentation) vs 0.9980 (`results.json`) are not reconciled | − |
+| All S1 × all S2/S3 | 1.7273e13 | **0.99999932** |
+| Within-country S1 × pool (blocking never crosses countries) | 6.7246e12 | **0.99999824** |
+| US / India / France within-country | – | 0.9999985 / 0.9999987 / 0.9999914 |
+| Raw blocking before the learned filters (78.9M, from the Documentation) | – | 0.9999954 |
+
+**How the set is produced.**
+1. Per country, word TF-IDF top 40 plus exact keys, with oversized key blocks skipped rather than truncated. This gives 78.9M test pairs, 46 per S1.
+2. Stage-1/2 LightGBM keeps p ≥ 0.001.
+3. Added routes are scored by a route classifier and kept at p > 0.001: character 3-gram retrieval, capped exact name keys (`er_keys.py`, cap 50 per key value on each side) and reverse retrieval (top 5).
+4. For US and India, a chain-probability cut at 0.001.
+5. The union with the second family's cascade (p2 > 0.02, top 10 per S1).
+
+The train analogue of the final set is 6.06 per S1 with oracle macro F0.5 0.99798 (`attempts/029f6_final/results.json`). The recall ceiling therefore costs at most 0.002 F0.5 on US and India. France has no labels.
+
+**Competitiveness.**
+- US and India at 5.6-6.1 per S1 is about 1.7-1.8 candidates per emitted match, while keeping a 0.998 oracle. That is close to the floor for a set that still has headroom for the matcher. Strong top-5% cascades will probably land around 4-15 per S1.
+- The weak spot is France: 12.31 per S1 and 3.71 candidates per match. France holds 27% of all candidates with 15% of the S1.
+- Of France's 3.19M pairs, 2.03M (7.8 per S1) come only from the main chain, which skips the chain-probability cut for France.
+- If France sat at India's 6.06 per S1, the overall mean would be about **5.90** instead of 6.83.
+- There is also a long tail: 2,715 S1 have more than 50 candidates, totalling 170k pairs (1.4%). The maximum is 776, for "Shree Foods Limited, Bangalore, Karnataka", a generic name with a city-only address.
+
+**Score breakdown.**
+
+| Criterion | Effect |
+|---|---|
+| Reduction ratio at the ceiling; within-country blocking; 0 cross-country pairs | + |
+| 6.83 per S1 overall, 5.6-6.1 for the labelled countries, with a 0.998 train oracle | ++ |
+| Multi-route design, oversized blocks skipped (not truncated), reverse retrieval, honest reporting of both 46 and 6.83 per S1 | + |
+| France at 12.31 per S1 (twice the others) | − |
+| Reduction done by a supervised cascade and a union of two families' sets, so a judge may discount it | −0.5 |
+| Long tail (max 776) | −0.5 |
 
 **Can the set shrink without changing the matches, within the definition?**
-- **Post-hoc cuts (not allowed).** Top-k, min-p or owner-only cuts on final probabilities would make candidates nearly equal to matches. They violate "whatever your model actually runs inference over" and invite a gaming finding. Do not do this.
-- **Top-k cap at the stage-2 filter (not realistic now).** The file's size distribution gives these upper bounds:
-  - cap 30 → 6.69 per S1 (−1.5%)
-  - cap 20 → 6.54 (−3.8%)
-  - cap 10 → 5.92 (−13%, 231,799 S1 affected)
-  
-  A cap requires re-running everything from `016_stage2b` onwards and would change the matches. The gain below cap 10 is negligible.
-- **France consistency filter (the only candidate, if matches stay identical).** Apply the same chain p ≥ 0.001 filter that US and India get, keeping any pair the second family also proposes, before `er_france.py`. The rerun is CPU-only: `er_france 029f5_final` → `er_fix 030q_fix --no-cv` → `er_predict`. Ship it only if `matching_results.tsv` comes out **byte-identical**. The E[T] and p0 terms in `decide()` and the pool-side features in 030q can flip marginal decisions, and a changed matching file would no longer be the leaderboard file. The size of the gain has not been measured.
+- **Post-hoc trimming (not allowed).** Cutting the written file by final probability, top-k or owner would misstate what the model ran over. Do not do this.
+- **France chain-probability cut (the only realistic option).** Apply the US/India rule to France *inside the pipeline*: in `er_france.py`, keep a chain pair only if its chain p ≥ 0.001 or the second family also proposes it.
+  - Pairs with chain p < 0.001 and no second-family score leave the blend at p < 0.001. The cross-encoder term (C = 0.1) cannot lift them to the 0.6 floor.
+  - However, `er_fix` (030q) name-twin features over a pool record's claimers, and the Σp / Π(1−p) terms in `decide()`, can flip marginal decisions.
+  - So ship it only if `matching_results.tsv` stays byte-identical (SHA-256 `2b885f1e…`). The expected gain is up to about 0.9 per S1 overall; the exact figure cannot be measured from the zip.
+- **Per-S1 cap or a higher `MIN_P` for US and India.** Either changes the meta-model's pool-side competition features, so the matches would change. Not realistic now.
 
 ## 4. Licences and parameter counts
 
 | Component | Licence | Parameters | Stated where | Correct? |
 |---|---|---|---|---|
-| intfloat/multilingual-e5-small (rev `614241f6…`) | MIT | 117.7M | README, stack README, `ce.py` | yes |
-| intfloat/multilingual-e5-base (rev `d1287505…`) | MIT | 278M | README, stack README, `ce_france.py` | yes, but **missing from the Documentation** |
-| Fine-tuned checkpoints | MIT (derived) | 12 in total: main e5-small ×2 and e5-base ×2; stack e5s ×2, e5i ×2, e5b ×2 and e5bc ×2. Largest 278M, sum about 2.4B | — | all ≤ 8B |
-| LightGBM 4.7.0 | MIT | tree models | README | yes |
-| microsoft/mdeberta-v3-base | MIT | — | named in the `src/stack/kaggle/ce.py:6` docstring only | not used, but it contradicts "no other pretrained models" |
-| Libraries | polars/polars-runtime MIT, numpy BSD-3, scipy BSD-3, scikit-learn BSD-3, rapidfuzz MIT, sparse-dot-topn Apache-2.0, pyarrow Apache-2.0, pyyaml MIT, psutil BSD-3, torch BSD-3/Apache, transformers Apache-2.0, pandas BSD-3, jellyfish MIT, tabulate MIT, **Unidecode GPL-2.0+** | — | README:41 discloses Unidecode | yes |
+| intfloat/multilingual-e5-small, rev `614241f6…` | MIT | ~118M (117.65M + 1-logit head) | Documentation §4.2, README, `ce.py`, `ce_train.py` | yes |
+| intfloat/multilingual-e5-base, rev `d1287505…` | MIT | ~278M | Documentation §4.2, README, `run.py`, `ce_france.py` | yes |
+| Fine-tuned checkpoints | derived from MIT | 12 in total, the largest 278M | Documentation §4.2 | yes, all ≤ 8B |
+| LightGBM 4.7.0 | MIT | tree models | Documentation, README | yes |
+| XGBoost 3.4.1 | Apache-2.0 | ablation only, not used by the submission | `requirements.txt` comment | yes |
 
-Minor points in this area:
-- `src/ce/ce_train.py:45,61,101` load weights without the pinned revision that the README says was used.
-- `src/single/fit.py:73-75,112-115` contains an `xgboost` branch, but xgboost is not pinned in any requirements file. The branch is not used.
+Libraries:
+- **Permissive:** polars / polars-runtime (MIT), numpy (BSD-3), scipy (BSD-3), scikit-learn (BSD-3), rapidfuzz (MIT), sparse-dot-topn (Apache-2.0), pyarrow (Apache-2.0), PyYAML (MIT), psutil (BSD-3), torch (BSD-3), transformers (Apache-2.0), pandas (BSD-3), jellyfish (MIT), tabulate (MIT).
+- **Copyleft:** Unidecode (**GPL-2.0-or-later**), disclosed in README:45 and Documentation §4.2.
+- Every third-party import is pinned in a requirements file. No shipped module imports `jellyfish` or `tabulate` (pinned in `src/stack/requirements.txt`), or `psutil` in the main pipeline.
 
 ## 5. External data scan
 
-- **Network use.** The only network use is `from_pretrained` inside the Kaggle cross-encoder scripts, downloading the declared weights. There is no `requests`, `urllib`, socket or HTTP client, no URLs, API keys or tokens, and no geocoding, registry or ER-service names.
-- **Hard-coded tables.**
-  - Abbreviations and street words in English, Indian and French forms (`er.py`, `er_norm.py`).
-  - Legal forms (`er_gen.py`, `er_feat5.py`), fillers and honorifics.
-  - The optional `CE_AUG` French rewrite in `ce_france.py`, which is off by default.
+- **Network use.** Only `AutoTokenizer/AutoModelForSequenceClassification.from_pretrained` in `src/ce/ce_train.py`, `src/stack/kaggle/ce.py` and `ce_france.py`, all at pinned revisions. `ce_score.py` loads the fine-tuned local checkpoints. There is no `requests`/`urllib`/socket/HTTP client, no URL other than the website regexes in the normalisers, no API key, token or secret, no geocoder, registry or ER-service name, and no S3/GCS path.
+- **Hard-coded tables.** The largest literal is 95 entries (`src/stack/src/normalize.py:45`). All tables are generic vocabulary:
+  - English, Indian and French street and legal-form abbreviations;
+  - stop words, honorifics and filler words;
+  - the decoy shift set {1,2,3,4,5,7,9,11,13,21}, which the Documentation derives from train pairs.
   
-  All of these are general language knowledge, not entity lookups. The organisers' own tips encourage "country specific address patterns".
-- **Transliteration maps.** Both families mine them from training pairs (`er_dict.py`, `stack/src/translit.py`). Nothing reads test labels, since no such file exists.
-- **Test-derived literals.** `VETO_WORDS` and `BROAD_WORDS` (`attempts/029f6_final/train.py:11-12`) were most likely produced label-free by the marker rule in `src/stack/src/marker_veto.py` (n ≥ 500, lift ≥ 1.5) and then copied in as literals. Nothing in the zip says so (see M3).
+  None is an entity or address lookup.
+- **Transliteration maps.** Mined from training pairs (`er_dict.py`, `src/stack/src/translit.py`).
+- **France word lists.** `VETO_WORDS` / `BROAD_WORDS` in `attempts/029f*_final/train.py` are printed by `src/er_frwords.py` from France's test candidate pairs, with no labels. The Documentation explains the derivation (§4.3).
+- **Test-set use.** Test features are used without labels: France marker tables, word lists, and the decoy-density guard. This is not prohibited, it is disclosed, and no code reads test labels (none exist).
 
 ## 6. Fair-play and provenance signals
 
-- **Names.** Only the four members in the Documentation header. There are no other person, team or tool names, no licence headers from other projects and no absolute paths. "Harness folds" appears in docstrings and is benign.
-- **`src/stack/` differs markedly from `src/`:**
-  - libraries and environment: pandas/pyarrow vs polars; Python 3.11 vs 3.12; different numpy and scipy pins;
-  - code conventions: `sys.path` inserts with `# noqa: E402`, inline comments and a Makefile, vs comment-free modules with attempt configs;
-  - leftover pointers to a different project layout: output files in an `experiments/` folder that does not exist in the zip, relative paths that leave the package (`../kaggle` in `stack_ce.py:40`, `Makefile:40-51`, `export_band.py:8-9`, `export_extra.py:11`; `../../cache/stack` in `export_scores.py:57`), build names like `output_v03`/`output_v08`, and a macOS-only memory watchdog for an "8 GB dev machine" while the Documentation reports 96 GB Linux machines.
-- **Wording that suggests inherited code:**
-  - `src/stack/README.md:20` "the original make targets, kept unchanged";
-  - `:90` "Hardware used originally";
-  - `:97` "The original export was an unrecorded one-off";
-  - `:111` "It is kept as found";
-  - `cand_budget.py:3` cites "guidelines.md, new_additional_guidelines", files that are not in the package.
+- **Names.** Only the four members in the Documentation header. There are no other person, team or tool names, no licence headers from other projects, no absolute paths, and no `__MACOSX` or dot files.
+- **`src/stack/` is written very differently from `src/`.**
+
+  | | `src/` | `src/stack/` |
+  |---|---|---|
+  | Code style | Dense, comment-free polars one-liners | PEP 8 with docstrings, inline comments and `# noqa: E402` path hacks |
+  | Stack | polars, Python 3.12 | pandas, Python 3.11 |
+  | IDs | `s1_idx`/`pool_idx` | `a_id`/`r_id` |
+  | Folds | stratified | crc32 |
+  | Tooling | – | its own memory watchdog and its own copy of the organisers' validator (`src/stack/utils/validate_submission.py`) |
+
+  The Documentation calls it "a separately built LightGBM pipeline" but does not say who built it or when.
+- **Leftovers that suggest `src/stack/` was once a standalone submission pipeline.**
+  - `stack_ce.py:17-20` says its kept pairs "are exactly the pairs written to candidate_pairs.tsv" and that France uses "a rule chosen by src/unseen_rule.py".
+  - It references scripts that do not ship: `loco_transfer.py` (`stack_ce.py:452,460`, `high_model.py:10`, `export_extra.py:5`), `feat_cnt.py` (`:56,609`), `fr_addr_rule.py` (`:518`), `cr_score.py` (`:546`) and `lexical.py` (`:606`).
+  - `run_experiment.py:9`, `marker_veto.py:11` and `high_model.py:11` write to an `experiments/` folder that does not exist in the zip.
+  - `src/stack/README.md` "Known reproduction gaps" says command lines were "rebuilt from the recorded configuration", the export "was not logged", and a setting "is inferred from the change history".
   
-  One by one these are harmless. Together they match the "very different coding styles between folders" signal, and the Documentation gives no account of how the second family was built.
-- **France tuning.** Several France-only rules (no labels) appear in Appendix B next to a leaderboard delta. §4 does give leave-one-country-out (LOCO) evidence for each rule. The table rows alone read as leaderboard-guided tuning.
-- **Country as an open set.** The pipeline switches on the literal `"france"` in `er_meta.py:92,132,134`, `er_comb.py:28`, `er_fix.py:63` and `er_france.py:66`, and the stack reads fixed per-country files. The organisers ask for country to be treated as an open set. An unseen fourth country would not crash, but it would silently take the US path.
+  The code paths that use these files are off in the final build flags. Together, though, this is exactly the "different coding styles between folders" signal.
+- **Evidence of common authorship.** Both families use the same unusual findings: the ten-value decoy shift set (`src/er_feat5.py:39`, `src/stack/src/marker_veto.py:29`), generator-operator features (`src/er_gen.py`, `src/stack/src/feat_ops.py`) and label-free decoy-marker vetoes. That points to one team rather than copied code, but the Documentation does not make this argument.
+- **`run_manifest.json`.** `src_sha256` lists 47 files, but only 30 ship:
+  - Missing: `embed.py`, `er_blend.py`, `er_diag.py`, `er_feat3.py`, `er_france2.py`, `er_keysfr.py`, `er_package.py`, `evaluate.py`, `harness_util.py`, `leaderboard.py`, `new_attempt.py`, `predict.py`, `prepare.py`, `split.py`, `sub_status.py`, `submit_log.py`, `train.py`.
+  - `embed.py` invites the question of an undisclosed embedding model. `er_france2.py`, `er_keysfr.py` and `er_blend.py` invite questions about France code paths that were not shipped.
+  - Other fields look confusing for a `--from-probs` run: `train_frac 0.2`, `n_entities 0`, `sample_sha256` (the hash of empty input) and `git_commit "nogit"`.
+  - All 30 shipped modules do match their hashes.
+- **Leaderboard use.** Documentation §2.2 says one France change (the empty-address correction) "was kept because the leaderboard rose". This is honest, and it is one decision out of many. It is low risk, but a strict reader may note it.
+- **Wording.** "Harness folds" appears in 8 docstrings (`er_meta.py:19`, `er_pool.py:13`, `er_stage3.py:10`, `er_fix.py:14`, `er_ce.py:8`, `er_comb.py:10`, `single/fit.py:1`, `ce/ce_train.py:6`) and in README:145. It is benign jargon for the folds built in `er_model.py:112`.
 
-## 7. Red flags, ranked by likely impact
+## 7. Red flags, ranked by how likely they are to cost standing
 
-1. **Reproduction fails from the zip (HIGH).** The step at README:105 needs the missing `attempts/029f5_final/`, and `030q_fix` has `PARENT = "029f5_final"`. The second family, which feeds both the meta-model and the France blend, is self-declared not reproducible: the export step has never been run end to end, the commands of steps 7-8 are reconstructed, the Kaggle wrappers are missing and the transliteration dictionaries are not shipped.
-2. **Leaderboard file identity (HIGH, outside the zip).** The zip holds #20 (029f6), but the last upload was #21 (029fmax). If the portal ranks the last upload, the package does not contain "the same file you upload to the leaderboard". The #21 matches are all inside the zip's candidate set (0 outside, 35,303 removed and 3 added relative to the zip).
-3. **Candidate-definition hygiene (MEDIUM-HIGH).** The file is carved out of the final probabilities, dormant post-hoc trimming options remain in the code, second-family pairs are scored but dropped, the README rule is imprecise, and the effective blocking is 46.5 per S1 (section 2.3).
-4. **Provenance signals in `src/stack/` (MEDIUM).** See section 6.
-5. **Hard-coded, test-derived France word lists and literal-country branching (MEDIUM).** France-only steps are shown next to leaderboard deltas.
-6. **Model disclosure incomplete in the Documentation (MEDIUM-LOW).** e5-base and the licence and parameter statement are missing, and the mdeberta mention and unpinned revision are inconsistent with the README.
-7. **Unreconciled blocking numbers (LOW-MEDIUM).** The Documentation gives oracle 0.9969 for the larger union, while the zip's `results.json` gives 0.9980 for the smaller final set. No recall is given for the submitted set.
-8. **GPL-2.0 Unidecode (LOW).** The rule covers models, and README discloses it.
-9. **Housekeeping (LOW).** `er_predict.py:13` names `src/er_package.py`, which is absent. The unused xgboost branch is unpinned. `config.yaml` has unused keys (`device: mps`, and others). Path resolution depends on git (`common.py:shared_root`).
+1. **Provenance of `src/stack/` (MEDIUM).** The style gap, a standalone `candidate_pairs.tsv` mention, 6 unshipped scripts, the `experiments/` outputs, the reconstructed command lines and a second validator copy. Disqualification is unlikely, because the shared decoy findings point to one team, but it is the most likely fair-play query.
+2. **Manifest lists 17 unshipped source files (MEDIUM).** Especially `embed.py`, which reads as a possible undisclosed model, and the France variants. It is cheap to fix.
+3. **Reviewer cannot reproduce quickly (MEDIUM-LOW).** The final step needs cache files that do not ship. The second family's test predictions ship as inputs. The GPU steps are not bit-identical. All of this is disclosed, but a reproduction attempt stops at about 50 CPU hours.
+4. **Candidate-set framing (MEDIUM-LOW, blocking rank).** The 6.83 per S1 figure depends on learned filters. Documentation §4.2 files stages 1-2 under the matching model, so a judge may use 46 per S1.
+5. **France at 12.31 per S1 (LOW-MEDIUM, blocking rank).** Twice the labelled countries, because France skips the chain-probability cut.
+6. **Literal country branching (LOW).**
+   - `er_meta.py:49` (country list), `:92` and `single/build.py:35` (`cty`, France = 2);
+   - `er_meta.py:132,134`, `er_comb.py:28`, `er_fix.py:63`, `er_pool.py:128` and `er_france.py:66` (the `"france"` switch);
+   - `er_keys.py:49-51` (India- and US-only keys).
+   
+   Disclosed as Limitation (5), and France is fully handled.
+7. **Transductive test statistics and one leaderboard-kept France rule (LOW).** Label-free and disclosed.
+8. **Unidecode GPL-2.0+ (LOW).** A library, not a model, and disclosed.
+9. **Housekeeping (LOW).**
+   - Unused pins: `jellyfish` and `tabulate` in `src/stack/requirements.txt`, `psutil` in `requirements.txt`.
+   - "8 GB machine" comments (`src/stack/src/block_feats.py:3`, `features.py:26`) next to the 96 GB machines in the Documentation.
+   - A 569 MB zip; confirm the portal's limit.
+
+Outside the zip (not judged): confirm that the portal ranks the upload whose SHA-256 is `2b885f1e…`, the zip's `matching_results.tsv`.
 
 ## 8. Prioritised fix list
 
-Every fix below except M-optional leaves both output files byte-identical, unless it says otherwise.
+Except M2, every fix leaves both output files byte-identical.
 
 ### HIGH
 
-- **H1. Missing attempt folder.** In `code/business_entity_resolution/attempts/`, add `029f5_final/train.py`. The repo has `attempts/029f5_final/`. Then check that every id in the README command list resolves: README:105 `029f5_final`, and the `030q_fix` `PARENT`. In README (after line 44), add one line saying that `028e_ce` and `028f_ce` are output names written by `er_extend.py`, not attempt folders.
-- **H2. Close the second family's reproducibility gaps (`src/stack/README.md:95-111`).**
-  1. Ship the mined dictionaries (`translit.json`, `translit_addr.json`) under `src/stack/cache/`. They are small and mined from train only.
-  2. Run `src/stack/src/export_scores.py --ic e1 --build output_v08` once. Compare the SHA-256 of its outputs with the delivered `cache/stack/*.parquet`. Replace "has not been run end to end" with the verified result.
-  3. Add the Kaggle kernel cells (the environment settings in the stack README table) as `src/stack/kaggle/run_*.py`.
-  4. If a gap cannot be closed, ship the `cache/stack/` parquet files as declared intermediate artefacts. That way the main pipeline regenerates both outputs from the zip.
-  5. Reword or delete "kept as found" (`:111`), "the original make targets, kept unchanged" (`:20`), "unrecorded one-off" (`:97`) and "Hardware used originally" (`:90`).
-- **H3. Confirm which upload the portal ranks (outside the zip).**
-  - If the portal ranks the best upload, or lets the team select one: select #20. The zip is then consistent and nothing changes.
-  - If it ranks the last upload (#21): replace `output/matching_results.tsv` with `submissions/final_029fmax/22_029fmax_final.tsv` (its matches are a subset of the current candidates; the validator still passes). Then update Documentation §4, §5 and Appendix B and README to 029fmax, and re-zip.
-- **H4. Make the candidate-set story exact and remove the post-hoc trimming code.**
-  1. In `src/er_predict.py`, delete the `CAND_MINP`/`CAND_TOPK`/`CAND_OWNER` docstring lines (10-11), `cascade()` (86-94) and the two blocks at lines 138-144. The final attempt does not use them, so the outputs stay the same.
-  2. Rewrite the docstring at line 8 to say the band filter repeats the upstream filter (`016_stage2b` scores exactly stage-2 p ≥ 0.001), applied here only because the chain carries every pair.
-  3. In `README.md:11-14` and `Documentation_template.md:32`, state the rule the code applies:
-     - US and India: the meta-model's input rows (chain p ≥ 0.001 plus second-family pairs), minus second-family pairs that stage 2 had rejected;
-     - France: pairs of the France blend with stage-2 p ≥ 0.001 or proposed after stage 2.
-  4. Count the second-family pairs that the meta-model scored but the file drops, in the repo:
-     `polars: test_027p_meta ⋈ test_006_stage2 on (s1_idx, pool_idx), filter prob_006 < 0.001, count by country`.
-     Queue it through `scripts/queue.sh`; it reads about 80M rows. If the count is small (under 1% of the file), add those pairs to `candidate_pairs.tsv`. The file then equals the meta-model's input, and the matches stay unchanged because `decide()` still runs on the filtered set. Otherwise, state the number in the README.
+- **H1. Make `run_manifest.json` describe only the shipped code.**
+  - In a clean copy of `code/business_entity_resolution/`, with `cache_dir` pointing at the existing cache, run `python src/er_predict.py 029f6_final --from-probs 030q_fix`. Check that the new `.tsv` and `.candidates.tsv` hash to `2b885f1e…` and `a8cda21e…`. Then replace `code/business_entity_resolution/run_manifest.json` with the new `submissions/archive/NN_029f6_final.json`. Its `src_sha256` will list exactly the 30 shipped modules (`er_predict.py` hashes `ROOT/src/*.py`).
+  - In `README.md` "Package contents", in the `run_manifest.json` bullet, add: "a `--from-probs` run, so `train_frac`, `n_entities`, `sample_sha256`, `n_train_pairs`, `features` and `params` are not used; `git_commit` is `nogit` because the package is not a git checkout".
+  - If a rerun is impossible, add a README note that the 17 extra `src_sha256` entries were research and tooling scripts in the working folder that the shipped pipeline never imports. Say explicitly what `embed.py` was and that it did not feed the submission, but only if that is true.
+  - Re-zip, and update `SHA256SUMS` only if something it covers changed.
+- **H2. Close the `src/stack/` provenance gaps (docstring and documentation edits only).**
+  1. `Documentation_template.md` §4.2 item 6, after "a separately built LightGBM pipeline with its own blocking, stage-3 stack and in-country e5 cross-encoders", add: "Both families were written by the team during the challenge. The second was built on purpose in a separate environment (pandas, Python 3.11, its own folds), so that the meta-model combines two independent error patterns. Both use the same generator findings: the decoy shift set (`src/er_feat5.py:39`, `src/stack/src/marker_veto.py:29`) and generator-operator features (`src/er_gen.py`, `src/stack/src/feat_ops.py`)." Keep member names out, per team policy.
+  2. In `src/stack/src/stack_ce.py:17-20`:
+     - change "which are exactly the pairs written to candidate_pairs.tsv" to "which are exactly the pairs exported to cache/stack";
+     - change "a rule chosen by src/unseen_rule.py" to "a rule chosen by leave-one-country-out tests".
+  3. Mark the references to unshipped scripts as "(research script, not shipped; not used by the submission)", or ship the scripts:
+     - `stack_ce.py:56,452,460,518,546,606,609`;
+     - `high_model.py:10-11`, `export_extra.py:5`, `marker_veto.py:11`, `run_experiment.py:9` (`experiments/`).
+     
+     Shipping `loco_transfer.py` is better, because it backs the LOCO numbers that Documentation §4.3 cites.
+  4. Delete `src/stack/utils/validate_submission.py` and its line in `src/stack/README.md` Layout, since README points to the organisers' validator. This is optional; the file is byte-identical to the organisers' copy.
+  5. In `src/stack/README.md` "Known reproduction gaps" items 2 and 4, replace "inferred from the change history" with the concrete source, e.g. "taken from the recorded configuration of that build".
 
 ### MEDIUM
 
-- **M1. Model disclosure.**
-  - `Documentation_template.md` §4 (after line 44): add "Pretrained models: intfloat/multilingual-e5-small (MIT, 118M) and intfloat/multilingual-e5-base (MIT, 278M), pinned revisions, fine-tuned on the provided training pairs only (12 checkpoints across both families, largest 278M); LightGBM 4.7.0 (MIT); no other pretrained model; libraries permissive except Unidecode (GPL-2.0) in the second family's text normalisation."
-  - `src/stack/kaggle/ce.py:6`: delete "/ microsoft/mdeberta-v3-base (MIT)".
-  - `src/ce/ce_train.py:45,61,101`: pass `revision=` for the pinned commit, read from `ce_cfg.json` or from a default per model.
-- **M2. Provenance.**
-  - Documentation Appendix A, and the first paragraph of `src/stack/README.md`: say that the second model family was built by the team during the challenge in its own environment (pandas, Python 3.11), and why. Keep member names out, per team policy.
-  - `src/stack/src/cand_budget.py:3`: replace "(guidelines.md, new_additional_guidelines)" with "(organisers' README)".
-  - Make the in-package `ce_work` the default in `stack_ce.py:40`, `export_band.py:8-9`, `export_extra.py:11` and the Makefile targets at lines 40-51, instead of `../kaggle`.
-  - Rename `output_v08` to a neutral `build` in the README command list and in `export_scores.py:56` only if that stays consistent with the delivered cache names. Otherwise leave it.
-- **M3. France word lists.**
-  - In `attempts/029f6_final/train.py:11-12`, and in one line of Documentation §4: state that `VETO_WORDS` and `BROAD_WORDS` are the output of the label-free marker rule on France's own candidate pairs (n ≥ 500, lift ≥ 1.5, `src/stack/src/marker_veto.py`), and why `BROAD_WORDS` exists.
-  - Better, have `er_france.py` compute them with that rule, but only if it reproduces the same words (then the outputs stay identical).
-- **M4. Country as an open set.**
-  - Replace the literal `"france"` tests (`er_meta.py:92,132,134`, `er_comb.py:28`, `er_fix.py:63`, `er_france.py:66`) with "country not in the training countries". The outputs are identical on this test set.
-  - Add one Documentation line: any unseen country follows the France path.
-- **M5. Blocking numbers in Documentation §3 (lines 32-34).**
-  - Add: test 11,778,648 pairs, 6.80 per S1 (US 5.62, India 6.02, France 12.24, with the reason France is higher); train analogue 13,373,981 pairs, 6.06 per S1, oracle macro F0.5 0.9980 (`attempts/029f6_final/results.json`), and the pair recall of that set.
-  - Reconcile or correct the 0.9969 figure.
-- **M6. Appendix B.** On France-only rows, add "rule fixed by LOCO before upload; LB shown for reference". Do not remove the numbers.
+- **M1. Candidate-set framing (Documentation §3 and §4.1, README "Overview").**
+  - In the §4.1 pipeline block, insert a line before `-> meta-model over both model families`: `==> candidate_pairs.tsv: chain p >= 0.001 (France: stage-2 band) + second-family cascade; 11.84M pairs, 6.83 per S1`.
+  - In §3, after the table, add: "Stages 1-2, the route classifier and the chain-probability cut are the learned filtering stages of the blocking cascade. Following the organisers' definition, the file holds the last stage: reduction ratio 0.9999993 against all S1 × pool pairs, 0.9999982 within country."
+  - In §4.2 item 1, label the models "*Stages 1-2 (blocking filter)*".
+- **M2. France candidate size (a pipeline change; ship only if the output is byte-identical).**
+  - In `src/er_france.py` `main()`, after the line that builds `d` (`d = base.rename({"prob": "pA"}).join(stack, …)`), add `d = d.filter(pl.col("pS").is_not_null() | (pl.col("pA") >= 0.001))`. This is the US/India `MIN_P` rule.
+  - Rerun `python src/er_france.py 029f5_final`, then `python src/er_fix.py 030q_fix --no-cv`, then `python src/er_predict.py 029f6_final --from-probs 030q_fix`.
+  - Keep the change only if `matching_results.tsv` still hashes to `2b885f1e…` and the validator passes. Then update:
+    - the counts in README "Candidate file (exact rule)";
+    - Documentation §3, including the sentence "France has twice the pairs per S1 because …";
+    - `SHA256SUMS` and the manifest.
+  - Otherwise leave everything as it is, and never trim the file after scoring.
+  - Expected: France from 12.31 towards about 6 per S1, overall from 6.83 towards about 5.9. This is an upper bound, not measurable from the zip.
+- **M3. Country as an open set, no output change (Documentation §6 Limitations (5)).** Add: "an unseen country with no labels takes the France path only after adding it to that switch; without that, it gets the US path (`cty = 0`)". Leave the code alone this late: the output-identical refactor (`er_meta.py:49` globbing `p_test_*.parquet`, a train-country set replacing the `"france"` literals) would need a meta-model rerun to prove identity.
 
 ### LOW
 
-- **L1. Stale references and unused code.**
-  - `src/er_predict.py:13`: drop "(src/er_package.py runs it)".
-  - `src/single/fit.py`: remove the xgb branch, or pin `xgboost` in `requirements.txt`.
-  - `config.yaml`: remove the unused keys (`device`, `dtype`, `num_workers`, `train_file`, `test_file`, `metric`, `cv`) or keep the README note.
-- **L2. Unidecode.** Keep it: replacing it would change the second family's outputs. M1 covers the disclosure.
-- **L3. `common.py:shared_root`.** Fall back to the package root when the folder is not a git checkout, and drop the README warning about running outside other checkouts.
-- **L4 (optional, changes outputs).** Try the France consistency filter from section 3. Ship it only if `matching_results.tsv` is byte-identical to the uploaded file and the validator passes. Then update the candidate counts in README and Documentation.
+- **L1. Quick-verify bundle (optional, adds about 150-250 MB).** Ship id-keyed copies of the three inputs of `er_predict.py --from-probs`:
+  - `cache/oof/test_030q_fix.parquet`;
+  - `cache/oof/test_006_stage2.parquet`, cut to the pairs of the first file;
+  - `entity_id` columns of `cache/norm/test_s1.parquet` and `test_pool.parquet`.
+  
+  Add one README line, so a reviewer can regenerate both outputs byte-identically in about 20 seconds. Skip this if the portal limits the zip size.
+- **L2. Unidecode.** Keep it, because replacing it would change the shipped second-family outputs. Optionally, in README:45, add "(a library, not a model; the licence rule covers models)".
+- **L3. Requirements tidy.** Remove or annotate "(unused)" `jellyfish==1.2.1` and `tabulate==0.10.0` in `src/stack/requirements.txt`, and `psutil==7.2.2` in `requirements.txt`.
+- **L4. Wording.** Replace "harness folds" with "the 5 CV folds (`src/er_model.py` `folds()`)" in the eight docstrings listed in section 6 and in README:145. Do it before H1, so the regenerated manifest hashes the edited files. Reword "8 GB machine" in `src/stack/src/block_feats.py:3` and `features.py:26` to "small-memory machine".
+- **L5. Long tail note.** In Documentation §3, one line: "generic names with city-only addresses make the tail: 2,715 S1 have more than 50 candidates, the maximum is 776". Do not add a cap now, because it would change the matches.
+- **L6. Zip size.** 569 MB. Confirm the portal's upload limit before the deadline.

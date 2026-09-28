@@ -6,7 +6,7 @@ Config keys: name, pairs_cfg (blocking config dict), train_blocks (list of count
 eval_blocks (blocks to score; blocks not in train_blocks are scored with the averaged fold models = holdout, e.g. LOCO),
 sample_rate (entity sampling rate for model training), rounds, params (LightGBM overrides), drop_features,
 rate_features (true: chain/frequency counts as rates per million S1 of the block), decision.
-Writes experiments/<ts>_<name>/{config.yaml, metrics.json, errors.tsv} and appends to experiments/results.tsv.
+Writes experiments/<ts>_<name>/{config.yaml, metrics.json, errors.tsv} and appends to experiments/results.tsv (created on first run).
 """
 import argparse
 import gc
