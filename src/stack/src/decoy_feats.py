@@ -35,7 +35,7 @@ from io_utils import ROOT                                 # noqa: E402
 from normalize import load_norm                          # noqa: E402
 from pairs import out_dir, safe, DEFAULT                 # noqa: E402
 
-KAG = os.environ.get("CE_DIR", os.path.join(ROOT, os.pardir, "kaggle"))
+KAG = os.environ.get("CE_DIR", os.path.join(ROOT, "ce_work"))
 SHIFTS = {1, 2, 3, 4, 5, 7, 9, 11, 13, 21}
 DECOY = ["h_both", "h_equal", "h_shift", "h_logdiff", "h_suffix", "lg_equal", "lg_differ", "lg_one_side",
          "nm_n_added", "nm_n_dropped", "dk_added", "dk_dropped", "dk_swap", "lg_nested", "u_equal", "u_conflict", "u_one_side",

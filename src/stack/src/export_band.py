@@ -5,8 +5,8 @@ test : saved test p2 (cache/predict_work/p2_<block>.npy) + country; no labels.
 Columns: a_id, r_id, country, split, fold (train), y (train), p2, a_name, a_addr, r_name, r_addr (raw strings).
 Output: <out>/<split>_band.parquet. Row contents are never printed; only counts.
 
-  python src/export_band.py --split train --exp final_s25_spec --out ../kaggle/band
-  python src/export_band.py --split test  --out ../kaggle/band
+  python src/export_band.py --split train --exp final_s25_spec --out ce_work/band
+  python src/export_band.py --split test  --out ce_work/band
 """
 import argparse
 import json

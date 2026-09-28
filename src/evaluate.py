@@ -7,7 +7,8 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from common import ROOT, get_metric, git_commit, load_attempt, load_config, load_folds, load_train
+from common import ROOT, git_commit, load_attempt, load_config
+from harness_util import get_metric, load_folds, load_train
 
 
 def main():

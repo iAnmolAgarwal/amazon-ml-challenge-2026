@@ -1,6 +1,10 @@
 # In-country stack model family: source for the stack probability and cross-encoder score files
 
-This folder has the code that produces the three file sets the final stack reads from `cache/stack/`:
+This folder is the second model family of the solution. It was developed during the challenge as a separate pipeline
+in its own environment (pandas, Python 3.11), so that the meta-model (`src/er_meta.py`) could combine two independently
+built families with different blocking, features and cross-encoders. It produces the three file sets the meta-model
+and the France blend read from `cache/stack/`. The files used for the submission are shipped in `artifacts/stack/`
+(SHA256 in `SHA256SUMS`), so the main pipeline runs from the package without rerunning this folder:
 
 | Produced here | Name in `cache/stack/` | Content |
 |---|---|---|
@@ -14,16 +18,16 @@ No external data is used. The only pretrained weights are `intfloat/multilingual
 - `src/`: the CPU pipeline. It covers normalisation, blocking, pair features, the two-stage LightGBM, band export, stage-3 features, the stage-3 stack (`stack_ce.py`) and the export (`export_scores.py`).
 - `kaggle/ce.py`: the in-country (`e5i`, `e5b`) and cross-country (`e5s`) cross-encoders.
 - `kaggle/ce_france.py`: the cross-country cross-encoder for the country without labels (`e5bc`).
+- `kaggle/run.py`: the kernel entry point that sets each run's settings.
 - `kaggle/requirements.txt`: pins for the GPU step.
 - `configs/`: the stage-2 experiment configs used by the chain.
 - `utils/validate_submission.py`: the organisers' validator.
-- `Makefile`: the original make targets, kept unchanged. It does **not** cover every step below; use the command list.
 
 ## Setup
 ```bash
 uv venv --python 3.11 .venv && uv pip install --python .venv/bin/python -r requirements.txt
 export PYTHONUTF8=1 PY=.venv/bin/python CE_DIR=$PWD/ce_work     # CE_DIR keeps band/ and out/ inside this folder
-export MEM_LIMIT_GB=48 MEM_MIN_AVAIL_GB=2                        # memory watchdog (src/memguard.py); defaults assume 8 GB
+export MEM_LIMIT_GB=48 MEM_MIN_AVAIL_GB=2                        # memory watchdog (src/memguard.py); its defaults (3 GB) suit small machines
 ```
 Data goes in `dataset/train/train_source{1,2,3}.tsv`, `dataset/train/train_ground_truth.tsv` and `dataset/test/test_source{1,2,3}.tsv`.
 
@@ -76,7 +80,7 @@ Dependencies between the file sets:
 ## GPU steps (Kaggle, 2 x T4, internet on for the model download or a pre-downloaded pinned revision)
 Upload `$CE_DIR/band/{train,test}_band.parquet` (and, for `e5bc`, `$CE_DIR/band_extra/*.parquet`) as a private Kaggle dataset. The scripts find the files under `/kaggle/input/**`.
 
-Run the script as a GPU kernel with these environment values. Set them in the kernel before the script runs, for example with `os.environ.setdefault(...)` at the top. Then download `/kaggle/working/scores_*.parquet` into `$CE_DIR/out/`.
+Run `python kaggle/run.py <tag>` as a GPU kernel (it sets the environment values below and runs the script), then download `/kaggle/working/scores_*.parquet` into `$CE_DIR/out/`.
 
 | Tag | Script | Settings | Outputs | Time |
 |---|---|---|---|---|
@@ -87,25 +91,25 @@ Run the script as a GPU kernel with these environment values. Set them in the ke
 
 In-country halves are split by band fold parity: `fold % 2 == h` is half `h`. Each run uses seed 0, fp16 autocast, linear warmup of 5 %, one epoch, and stops early at the `CE_TRAIN_MIN` time budget.
 
-## Hardware used originally
+## Hardware used
 The steps ran on a mix of machines:
 - CPU machines with 8-96 GB RAM ran the CPU steps. Blocking takes 25-60 min per country block. Stage-2 training takes ~35 min per model on 8 vCPU / 64 GB.
 - Kaggle 2 x T4 ran the cross-encoders.
 
-## Not reproducible from this code alone (honest gaps)
+## Known reproduction gaps
+The shipped files in `artifacts/stack/` are the ones the submission used. Regenerating them with the steps above has these limits:
 1. **Export step (step 9).**
-   - The original export was an unrecorded one-off.
-   - `src/export_scores.py` reconstructs it from the documented format, the `SAVE_IC` cache written by `stack_ce.py eval`, and the `final_p_*.npz` written by `stack_ce.py test`.
+   - The export command was not logged.
+   - `src/export_scores.py` rebuilds it from the documented format, the `SAVE_IC` cache written by `stack_ce.py eval`, and the `final_p_*.npz` written by `stack_ce.py test`.
    - Its row filter matches the delivered files. Every row with `q < 0.001` has `p2 > 0.02` and a within-S1 `p2` rank of at most 10, and `q == p2` on 100 % of out-of-band rows. It has not been run end to end.
 2. **Exact command lines of steps 7-8.**
    - These were not logged verbatim. The flags are rebuilt from the recorded configuration: `--decoy --decoy2 --ops --pairf`, 127 leaves, min_data 100, 800 rounds, the cache tag `e1` and the build directory `output_v08`.
    - At default settings, the current code behaves the same as the code of that build. The later additions only activate through the `MONO` and `UNSEEN_ADDR_SHIFT` environment variables, or write an extra `all_p_*.npy`.
 3. **Kaggle kernels.**
-   - The kernel wrappers for `e5s`, `e5i`, `e5b` and `e5bc`, and the dataset upload, were manual and are not in the code. Their settings come from the original Makefile notes and the script defaults.
+   - The kernels and the dataset upload were set up by hand in the Kaggle UI. `kaggle/run.py` encodes their settings (the table above, from the run notes and the script defaults).
    - Training is cut by a wall-clock budget (`CE_TRAIN_MIN`) under fp16. A rerun can see a different number of steps, so the scores will be close but not bit-identical to the delivered files.
 4. **`e5bc` France band.** It was produced with `export_extra.py` at its defaults: the France band from the spec + no-spec (`final_s25`) blend, and LOCO extras from `loco_s25spec` / `loco_s25`. This is inferred from the change history. The `FR_NS`/`EXTRA_NS` variants were added later for other screens. Band pairs of the France DK blend that lack an `e5bc` score get the median score, by design.
 5. **Transliteration dictionaries.**
-   - The original run used dictionaries mined once and kept as data files; they are not included here.
+   - The submission run used dictionaries mined once by step 1 and kept as data files; those files were not kept.
    - Step 1 re-mines them with the same code from the train pairs. Byte-identity with the originals has not been checked.
 6. **France pre-veto scores** are not stored anywhere. `p_test_France` has the veto applied.
-7. **Makefile.** It is kept as found. It lacks the `final_s25` no-spec France prediction, the four LOCO experiments, `feat_ops.py`/`band_feats.py`, and the `--ops --pairf` / `STACK_PARAMS` / `STACK_ROUNDS` / `SAVE_IC` settings. The command list above is the complete order.

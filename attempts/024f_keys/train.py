@@ -20,4 +20,4 @@ PRE_STEPS = [
     "ln -s 017_route cache/models/024f_keys",
     "python src/er_newpairs.py score 024f_keys --split train",
 ]
-PREDICT = "python src/er_predict.py 024_keys --from-probs 024_keys"
+PREDICT = "# no test output of its own: 024f_keys adds train-side extra candidates; the test side is attempts/024_keys"

@@ -29,7 +29,7 @@ from io_utils import ROOT                                 # noqa: E402
 from normalize import CACHE, load_norm                   # noqa: E402
 from pairs import out_dir, safe, DEFAULT                 # noqa: E402
 
-KAG = os.environ.get("CE_DIR", os.path.join(ROOT, os.pardir, "kaggle"))
+KAG = os.environ.get("CE_DIR", os.path.join(ROOT, "ce_work"))
 PAIR_FEATS = ["cos_addr_w", "ad_tset", "ad_tsort", "ad_ptset", "ad_ratio", "nums_shared", "nums_a", "nums_r", "nums_jac",
               "num1_eq", "num1_missing", "addr_len_a", "addr_len_r", "r_addr_empty", "cos_name_c3", "nm_tset"]
 ANCHOR_P = 0.9

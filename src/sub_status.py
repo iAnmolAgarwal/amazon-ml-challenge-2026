@@ -1,7 +1,8 @@
 import numpy as np
 
 from submit_log import PER_DAY, TOTAL, budget, read_log, today_ist
-from common import ROOT, paired_gain, read_json
+from common import ROOT, read_json
+from harness_util import paired_gain
 
 
 def fnum(x):

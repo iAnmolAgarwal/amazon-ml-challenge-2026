@@ -12,8 +12,8 @@ PARAMS = dict(objective="binary", learning_rate=0.05, num_leaves=127, min_data_i
 ROUNDS = 600
 DEPENDS = ["028f_ce", "024f_keys", "028k_ce", "028_ce", "024_keys", "023_comb", "018_lexical", "017_route", "016_stage2b", "006_stage2", "005n_indic_nocoh", "005f_floor"]
 PRE_STEPS = [
-    "# all steps of attempts/029f2_final up to the cross-encoder side-cars (028f_ce, train_ce2 / test_ce2_par), then:",
-    "# in-country stack model family (src/stack): its out-of-fold train and test pair probabilities and cross-encoder scores in cache/stack",
+    "# the command list of attempts/029f6_final up to the single-model side-car (cache/feat/{split}_r19a2), then:",
+    "# second model family outputs in cache/stack (shipped in artifacts/stack; code in src/stack): out-of-fold train and test pair probabilities and cross-encoder scores",
     "python src/er_meta.py 027p_meta",
 ]
-PREDICT = "python src/er_predict.py 027l_meta --from-probs 027l_meta"
+PREDICT = "python src/er_predict.py 027p_meta --from-probs 027p_meta"

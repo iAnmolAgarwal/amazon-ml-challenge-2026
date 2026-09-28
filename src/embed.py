@@ -4,7 +4,8 @@ from pathlib import Path
 
 import numpy as np
 
-from common import get_device, load_config, read_table
+from common import load_config
+from harness_util import get_device, read_table
 
 
 def safe_name(s):

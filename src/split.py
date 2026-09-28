@@ -5,7 +5,8 @@ import numpy as np
 import polars as pl
 from sklearn.model_selection import GroupKFold, KFold, StratifiedKFold
 
-from common import load_config, load_train
+from common import load_config
+from harness_util import load_train
 
 
 def main():

@@ -1,7 +1,8 @@
 import argparse
 import re
 
-from common import ROOT, paired_gain, read_json
+from common import ROOT, read_json
+from harness_util import paired_gain
 
 
 def parent_of(d):

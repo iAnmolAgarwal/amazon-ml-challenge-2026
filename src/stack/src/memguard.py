@@ -1,4 +1,4 @@
-"""Memory watchdog: aborts the job (and its worker processes) before it exhausts RAM on the 8 GB dev machine.
+"""Memory watchdog: aborts the job (and its worker processes) before it exhausts RAM (limits from MEM_LIMIT_GB / MEM_MIN_AVAIL_GB).
 
 Usage: `import memguard; memguard.start(limit_gb=3.0)` at the top of any heavy entry point.
 The limit is on total RSS of this process + children; it also aborts if system free memory + inactive drops too low.

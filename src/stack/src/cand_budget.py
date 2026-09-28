@@ -1,6 +1,6 @@
 """Candidate-budget analysis (analysis only): how small can the candidate set per Source 1 entity be?
 
-The organisers rank smaller candidate sets per S1 higher (guidelines.md, new_additional_guidelines). This measures,
+The organisers rank smaller candidate sets per S1 higher (organisers' README). This measures,
 on train out-of-fold stage-2 probabilities, what a cascade filter would cost: keep a pair only if p2 > t and it is
 within the top k of its S1 entity. For each (t, k) it reports mean / p95 candidates per S1, candidate recall
 (true links kept / all true links) and macro F0.5 of the unchanged decision rule on the kept pairs. The test side

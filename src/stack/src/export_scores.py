@@ -3,7 +3,7 @@
 p_train: cache/ic_q/<ic>_<c>.npz (stack_ce.py eval with SAVE_IC=<ic>), row-aligned with the train pair table; rows kept
 if q >= 0.001 or cascade-kept (p2 > 0.02 and top 10 by p2 per S1).
 p_test: <build>/final_p_<c>.npz (stack_ce.py test), codes mapped to ids through the test pair table.
-scores: ../kaggle/out/scores_<tag>_half<h>_<split>.parquet copied as scores_<tag>_<h>_<split>.parquet.
+scores: $CE_DIR/out/scores_<tag>_half<h>_<split>.parquet copied as scores_<tag>_<h>_<split>.parquet.
 
   python src/export_scores.py --ic e1 --build output_v08 --out ../../cache/stack
 """
@@ -21,7 +21,7 @@ from io_utils import ROOT                                 # noqa: E402
 from pairs import out_dir, safe, DEFAULT                  # noqa: E402
 from cand_budget import keep_mask, rank_in_entity         # noqa: E402
 
-KAG = os.environ.get("CE_DIR", os.path.join(ROOT, os.pardir, "kaggle"))
+KAG = os.environ.get("CE_DIR", os.path.join(ROOT, "ce_work"))
 
 
 def train(ic, c, out):

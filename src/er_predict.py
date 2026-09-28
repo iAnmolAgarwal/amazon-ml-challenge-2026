@@ -1,16 +1,16 @@
 """Test inference: train on train pairs, score test pairs, decide, write the two submission TSVs.
 
-usage: python src/er_predict.py <attempt_id> [--tag ""] [--train-frac F]   (default: the attempt's TRAIN_FRAC)
+usage: python src/er_predict.py <attempt_id> [--tag ""] [--train-frac F] [--from-probs A]   (default: the attempt's TRAIN_FRAC)
 
 Writes submissions/archive/NN_<attempt_id>.tsv (matching_results format),
-submissions/archive/NN_<attempt_id>.candidates.tsv (candidate_pairs format: the candidate set the final models run inference over; see CAND_BAND)
-and submissions/NN_<attempt_id>.json (run manifest: fraction, sample hash, features, params, source hashes).
-CAND_BAND = (attempt, t) in the attempt keeps only pairs that attempt scored with p >= t, plus pairs it never scored
-(added later, e.g. by retrieval): the final models' band, decided and written as the candidate set.
-CAND_MINP / CAND_TOPK / CAND_OWNER (research options, not used by the final attempt) cut the written set further using
-final probabilities.
+submissions/archive/NN_<attempt_id>.candidates.tsv (candidate_pairs format: every pair the final models run inference over)
+and submissions/archive/NN_<attempt_id>.json (run manifest: fraction, sample hash, features, params, source and output hashes).
+CAND_BAND = (attempt, t): only pairs that attempt scored with p >= t, plus pairs it never scored (added after it, e.g. by
+retrieval), are decided on. This repeats the upstream filter: the band models after stage 2 score exactly these pairs.
+CAND_ALSO = folder with the second model family's p_test_*.parquet (a_id, r_id): its candidate pairs are scored by the
+final models too, so they are written to the candidate file as well; the decision still uses the CAND_BAND set only.
 One row per test S1 in test_source1 order; ids S2-/S3- only, in a fixed order.
-Validate with the organisers' utils/validate_submission.py --check-ids (src/er_package.py runs it).
+Validate with the organisers' utils/validate_submission.py --check-ids.
 """
 import argparse
 import hashlib
@@ -83,30 +83,6 @@ def train_and_score(a, cfg, mod, get, cache, frac, t0):
     return pairs, keep, yv, cols
 
 
-def cascade(pairs, minp, topk):
-    """Final candidate set = pairs with p > minp, at most topk per S1 (highest p first); decided on as written."""
-    n0 = len(pairs)
-    out = pairs.filter(pl.col("prob") > minp)
-    if topk:
-        out = out.sort(["s1_idx", "prob", "pool_idx"], descending=[False, True, False]).with_columns(r=pl.int_range(pl.len()).over("s1_idx")).filter(pl.col("r") < topk).drop("r")
-    print(f"candidate cascade: {len(out):,} of {n0:,} pairs kept (p > {minp}, top {topk} per S1)", flush=True)
-    return out
-
-
-def apply_veto(pairs, cache, veto):
-    """VETO = {country: [words]}: pairs of that country whose pool name has one of the words and the S1 name does not get p = 0."""
-    fold = lambda c: pl.col(c).fill_null("").str.normalize("NFKD").str.replace_all(r"\p{Mn}", "").str.to_lowercase().str.replace_all(r"[^\p{L}\p{N}]+", " ").str.strip_chars().str.split(" ")
-    s1 = pl.read_parquet(cache / "raw" / "test_source1.parquet", columns=["business_name", "country"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32), pl.col("country").str.to_lowercase())
-    pool = pl.concat([pl.read_parquet(cache / "raw" / f"test_source{i}.parquet", columns=["business_name"]) for i in (2, 3)]).with_row_index("pool_idx").with_columns(pl.col("pool_idx").cast(pl.UInt32))
-    for country, words in veto.items():
-        ids = s1.filter(pl.col("country") == country).select("s1_idx", ts=fold("business_name"))
-        cand = pairs.join(ids, on="s1_idx", how="inner").join(pool.select("pool_idx", tp=fold("business_name")), on="pool_idx", how="left")
-        hit = cand.filter(pl.any_horizontal([pl.col("tp").list.contains(w) & ~pl.col("ts").list.contains(w) for w in words])).select("s1_idx", "pool_idx")
-        pairs = pairs.join(hit.with_columns(v=pl.lit(True)), on=["s1_idx", "pool_idx"], how="left", maintain_order="left").with_columns(prob=pl.when(pl.col("v")).then(0.0).otherwise(pl.col("prob")).cast(pl.Float32)).drop("v")
-        print(f"veto {country}: {hit.height:,} pairs set to 0 ({', '.join(words)})", flush=True)
-    return pairs
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("attempt_id")
@@ -126,29 +102,28 @@ def main():
         print(f"re-deciding {len(pairs):,} test pairs from {a.from_probs} (no training)", flush=True)
     else:
         pairs, keep, yv, cols = train_and_score(a, cfg, mod, get, cache, frac, t0)
-    veto = getattr(mod, "VETO", None)
-    if veto:
-        pairs = apply_veto(pairs, cache, veto)
+    full = pairs
     band = getattr(mod, "CAND_BAND", None)
     if band:
         n0 = len(pairs)
         b = pl.read_parquet(cache / "oof" / f"test_{band[0]}{a.tag}.parquet", columns=["s1_idx", "pool_idx", "prob"]).rename({"prob": "pb"})
         pairs = pairs.join(b, on=["s1_idx", "pool_idx"], how="left", maintain_order="left").filter(pl.col("pb").is_null() | (pl.col("pb") >= band[1])).drop("pb")
         print(f"candidate band: {len(pairs):,} of {n0:,} pairs kept ({band[0]} p >= {band[1]} or added after it)", flush=True)
-    cminp, ctopk = getattr(mod, "CAND_MINP", None), getattr(mod, "CAND_TOPK", None)
-    if cminp is not None or ctopk is not None:
-        pairs = cascade(pairs, cminp or 0.0, ctopk)
-    if getattr(mod, "CAND_OWNER", False):
-        n0 = len(pairs)
-        pairs = pairs.sort(["pool_idx", "prob", "s1_idx"], descending=[False, True, False]).unique("pool_idx", keep="first", maintain_order=True)
-        print(f"candidate owners: {len(pairs):,} of {n0:,} pairs kept (each pool record with its highest-probability S1 only)", flush=True)
-    pred = get("decide")(pairs, cfg, floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"))
     ts1 = pl.read_parquet(cache / "norm" / "test_s1.parquet", columns=["entity_id"]).with_row_index("s1_idx").with_columns(pl.col("s1_idx").cast(pl.UInt32))
     tpool = pl.read_parquet(cache / "norm" / "test_pool.parquet", columns=["entity_id"]).with_row_index("pool_idx").with_columns(pl.col("pool_idx").cast(pl.UInt32))
+    cand = pairs
+    also = getattr(mod, "CAND_ALSO", None)
+    if also:
+        x = pl.concat([pl.read_parquet(f, columns=["a_id", "r_id"]) for f in sorted(Path(also).glob("p_test_*.parquet"))])
+        x = x.join(ts1.rename({"entity_id": "a_id"}), on="a_id").join(tpool.rename({"entity_id": "r_id"}), on="r_id").select("s1_idx", "pool_idx")
+        extra = full.join(x, on=["s1_idx", "pool_idx"], how="semi").join(pairs, on=["s1_idx", "pool_idx"], how="anti")
+        cand = pl.concat([pairs, extra])
+        print(f"candidate file: {len(cand):,} pairs ({len(extra):,} second-family pairs below the band: scored, not decided on)", flush=True)
+    pred = get("decide")(pairs, cfg, floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"))
     name = lambda df: df.join(ts1, on="s1_idx", maintain_order="left").join(tpool.rename({"entity_id": "pid"}), on="pool_idx", maintain_order="left")
     m = name(pred.sort(["s1_idx", "prob", "pool_idx"], descending=[False, True, False])).group_by("entity_id", maintain_order=True).agg(pl.col("pid").alias("ids"))
     assert pred.join(pairs, on=["s1_idx", "pool_idx"], how="anti").is_empty(), "a match is not a scored candidate"
-    c = name(pairs.select("s1_idx", "pool_idx").sort("s1_idx", "pool_idx")).group_by("entity_id", maintain_order=True).agg(pl.col("pid").alias("ids"))
+    c = name(cand.select("s1_idx", "pool_idx").sort("s1_idx", "pool_idx")).group_by("entity_id", maintain_order=True).agg(pl.col("pid").alias("ids"))
     out = ROOT / "submissions" / "archive"
     out.mkdir(parents=True, exist_ok=True)
     n = next_n(out)
@@ -160,10 +135,10 @@ def main():
     man = dict(attempt=a.attempt_id, tag=a.tag, train_frac=frac, n_entities=len(keep), sample_sha256=hashlib.sha256(np.sort(keep).tobytes()).hexdigest(), n_train_pairs=len(yv), n_pos=int(yv.sum()),
                features=cols, params=get("PARAMS"), rounds=get("ROUNDS"), floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"), from_probs=a.from_probs, custom_fit=hasattr(mod, "fit"), git_commit=git_commit(), src_sha256=src,
                versions=dict(python=sys.version.split()[0], polars=pl.__version__, numpy=np.__version__, lightgbm=lgb.__version__),
-               matching_sha256=sha256(mp), candidates_sha256=sha256(cp), n_matched_pairs=len(pred), n_candidate_pairs=len(pairs), runtime_s=round(time.time() - t0))
+               matching_sha256=sha256(mp), candidates_sha256=sha256(cp), n_matched_pairs=len(pred), n_decided_pairs=len(pairs), n_candidate_pairs=len(cand), runtime_s=round(time.time() - t0))
     mp.with_suffix(".json").write_text(json.dumps(man, indent=1))
     k = pred.group_by("s1_idx").len()
-    print(f"wrote {mp.name} and {cp.name}: {len(ids):,} S1, {len(k):,} with matches, {len(pred):,} matched pairs (mean {len(pred) / len(ids):.2f}/S1), {len(pairs):,} candidates, {time.time() - t0:.0f}s")
+    print(f"wrote {mp.name} and {cp.name}: {len(ids):,} S1, {len(k):,} with matches, {len(pred):,} matched pairs (mean {len(pred) / len(ids):.2f}/S1), {len(cand):,} candidates, {time.time() - t0:.0f}s")
 
 
 if __name__ == "__main__":

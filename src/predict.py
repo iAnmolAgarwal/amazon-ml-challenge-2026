@@ -3,7 +3,8 @@ import re
 import subprocess
 import sys
 
-from common import ROOT, load_attempt, load_config, load_test, load_train
+from common import ROOT, load_attempt, load_config
+from harness_util import load_test, load_train
 from er import raw_dir, validator_path
 
 

@@ -37,7 +37,7 @@ from model import load_keys                              # noqa: E402
 from loco_rules import Fast, f05                          # noqa: E402
 from cand_budget import rank_in_entity, keep_mask         # noqa: E402
 
-KAG = os.environ.get("CE_DIR", os.path.join(ROOT, os.pardir, "kaggle"))   # band/ and out/ (Makefile: ../kaggle)
+KAG = os.environ.get("CE_DIR", os.path.join(ROOT, "ce_work"))   # band/ and out/
 FEATS = ["lp2", "ce", "ce_rank_a", "ce_gap_a", "ce_n_a", "ce_rank_r", "ce_margin_r", "ce_n_r", "lp2_x_ce"]
 # optional second cross-encoder (in-country, entity halves; --tag2): same features with the ce2 prefix
 FEATS2 = FEATS + ["ce2", "ce2_rank_a", "ce2_gap_a", "ce2_margin_r", "lp2_x_ce2"]

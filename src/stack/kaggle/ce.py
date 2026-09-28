@@ -3,7 +3,7 @@
 Leakage-safe by country: the model trained on the US band scores the India band (and vice versa), so every train
 score is out-of-sample and doubles as a held-out-country (unseen-country) measurement. Both models score the test
 band (France, India, US). Outputs (keyed by a_id, r_id): /kaggle/working/scores_<model_tag>.parquet + metrics json.
-Only aggregate metrics are printed. Licence: intfloat/multilingual-e5-small (MIT) / microsoft/mdeberta-v3-base (MIT).
+Only aggregate metrics are printed. Licence: intfloat/multilingual-e5-small and intfloat/multilingual-e5-base (MIT).
 """
 import glob
 import json

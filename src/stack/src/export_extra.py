@@ -8,7 +8,7 @@
 Columns as export_band.py (a_id, r_id, country, split, [fold, y], p2, a_name, a_addr, r_name, r_addr).
 Prints counts only.
 
-  python src/export_extra.py --out ../kaggle/band_extra
+  python src/export_extra.py --out ce_work/band_extra
 """
 import argparse
 import json
@@ -27,7 +27,7 @@ from model import fold_of                                 # noqa: E402
 from cand_budget import rank_in_entity, keep_mask         # noqa: E402
 from export_band import texts, LO, HI                     # noqa: E402
 
-KAG = os.environ.get("CE_DIR", os.path.join(ROOT, os.pardir, "kaggle"))
+KAG = os.environ.get("CE_DIR", os.path.join(ROOT, "ce_work"))
 
 
 def logit(p):
