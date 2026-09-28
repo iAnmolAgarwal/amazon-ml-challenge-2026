@@ -143,7 +143,7 @@ python src/prepare_raw.py                         # TSV -> parquet (cache/raw)
 ```
 Then copy the outputs to the package root (`NN` is the number the last command prints):
 `cp submissions/archive/NN_{attempt}.tsv ../../output/matching_results.tsv && cp submissions/archive/NN_{attempt}.candidates.tsv ../../output/candidate_pairs.tsv`
-and check them with the organisers' `utils/validate_submission.py --check-ids`.
+and check them with the organisers' validator (`utils/validate_submission.py` in the challenge download) with `--check-ids`.
 The attempt's settings are in `attempts/{attempt}/train.py`; defaults in `src/er_model.py`.
 
 ## Quick check of the last step (about a minute)
