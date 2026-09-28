@@ -44,7 +44,7 @@ def git_commit():
     try:
         return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, text=True, stderr=subprocess.DEVNULL).strip()
     except Exception:
-        return "nogit"
+        return os.environ.get("AML_GIT_COMMIT", "nogit")
 
 
 def sha256(path):

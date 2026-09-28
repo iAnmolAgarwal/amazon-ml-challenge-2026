@@ -18,6 +18,7 @@ usage: python src/er_package.py submissions/NN_<attempt_id>.tsv [--validate-only
 Never includes data, caches other than ARTIFACTS, credentials or git metadata.
 """
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -67,6 +68,7 @@ Run every command from this folder (`code/business_entity_resolution/`).
 - `attempts/<id>/train.py`: the settings of each stage named in the command list (loaded by `src/common.py`).
 - `artifacts/stack/`: the second model family's outputs used by the submission (13 parquet files, about 455 MB), so the
   main pipeline runs from this package alone. `src/stack/README.md` regenerates them.
+- `artifacts/final/final_probs.parquet`: the final probability of every candidate pair, for the quick check below.
 - `config.yaml` (data and cache folders, seed), `requirements.txt` (CPU), `requirements-gpu.txt` (GPU steps).
 - `run_manifest.json`: the record of the final step (git commit, SHA256 of every source file, of the attempt settings
   and of both outputs, library versions, runtime). `SHA256SUMS`: both outputs and the shipped artefacts.
@@ -144,6 +146,14 @@ Then copy the outputs: `mkdir -p output && cp submissions/archive/NN_{attempt}.t
 and check them with the organisers' `utils/validate_submission.py --check-ids`.
 The attempt's settings are in `attempts/{attempt}/train.py`; defaults in `src/er_model.py`.
 
+## Quick check of the last step (about a minute)
+`artifacts/final/final_probs.parquet` holds every candidate pair with its final probability and whether the decision
+considers it. With the organisers' dataset under `data/`:
+```
+python src/verify_final.py        # rebuilds both TSVs into verify/ and compares their SHA256 with output/
+```
+It runs the same decision and writing code as the last command of the list below (`er_predict.py`).
+
 ## Verification
 Expected 5-fold CV macro F0.5 (train S1 of US + India, harness folds, the same decision rule) after each stage:
 
@@ -203,7 +213,7 @@ PLACEHOLDERS = ("{CV_", "[final]", "[update", "[Your Team Name]", "[List all tea
 SRC_DIRS = ["stack", "ce", "single"]
 ARTIFACTS = ("stack", "p_*.parquet", "scores_*.parquet")
 BANNED = re.compile(r"harsimran|akshit|nitya|anmol|apprentice|partner pipeline|teammate|team ?mate|handoff|second pipeline|their pipeline|claude|codex|anthropic|co-authored", re.I)
-SRC_FILES = ["common.py", "er.py", "er_dict.py", "er_norm.py", "er_block.py", "er_feat.py", "er_feat2.py", "er_feat4.py", "er_feat5.py", "er_feat6.py", "er_lift.py", "er_stage3.py", "er_retrieve.py", "er_newpairs.py", "er_lexical.py", "er_keys.py", "er_rtext.py", "er_pool.py", "er_gen.py", "er_comb.py", "er_ce.py", "er_meta.py", "er_frwords.py", "er_france.py", "er_extend.py", "er_fix.py", "er_model.py", "er_eval.py", "er_predict.py"]
+SRC_FILES = ["common.py", "er.py", "er_dict.py", "er_norm.py", "er_block.py", "er_feat.py", "er_feat2.py", "er_feat4.py", "er_feat5.py", "er_feat6.py", "er_lift.py", "er_stage3.py", "er_retrieve.py", "er_newpairs.py", "er_lexical.py", "er_keys.py", "er_rtext.py", "er_pool.py", "er_gen.py", "er_comb.py", "er_ce.py", "er_meta.py", "er_frwords.py", "er_france.py", "er_extend.py", "er_fix.py", "er_model.py", "er_eval.py", "er_predict.py", "verify_final.py"]
 
 
 def validate(mt, ct, cfg, test_dir):
@@ -287,7 +297,12 @@ def main():
             zf.write(mt, "output/matching_results.tsv")
             zf.write(ct, "output/candidate_pairs.tsv")
             zf.write(DOC, "Documentation_template.md")
-            zf.write(mt.with_suffix(".json"), base + "run_manifest.json")
+            man_z = dict(man, src_sha256={k: v for k, v in man["src_sha256"].items() if k in SRC_FILES or k == "train.py"},
+                         src_note="SHA256 of the shipped src/ modules and the attempt's train.py at run time; research modules of the source tree are not shipped")
+            zf.writestr(base + "run_manifest.json", json.dumps(man_z, indent=1))
+            probs = mt.with_suffix(".probs.parquet")
+            zf.write(probs, base + "artifacts/final/final_probs.parquet", compress_type=zipfile.ZIP_STORED)
+            sums.append((sha256(probs), "artifacts/final/final_probs.parquet"))
             sums += [(sha256(mt), "../../output/matching_results.tsv"), (sha256(ct), "../../output/candidate_pairs.tsv")]
             src = Path(load_config()["cache_dir"]) / ARTIFACTS[0]
             arts = sorted(f for g in ARTIFACTS[1:] for f in src.glob(g))
@@ -303,7 +318,7 @@ def main():
     if hits:
         tmp.unlink()
         raise SystemExit(f"names or banned wording in: {hits}")
-    if any(re.search(r"(\.pem|credentials|\.env|/cache/|/data/)", n) for n in names) or any(n.endswith(".parquet") and "/artifacts/stack/" not in n for n in names):
+    if any(re.search(r"(\.pem|credentials|\.env|/cache/|/data/)", n) for n in names) or any(n.endswith(".parquet") and not re.search(r"/artifacts/(stack|final)/", n) for n in names):
         tmp.unlink()
         raise SystemExit("forbidden file in zip")
     tmp.replace(z)

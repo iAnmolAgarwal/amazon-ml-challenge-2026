@@ -1,212 +1,205 @@
-# Evaluation B: methodology and documentation quality
+# Evaluation B (round 2): methodology and documentation quality
 
-Package: `submissions/final_package/Apprentice_submission.zip` (unzipped to scratch, zip and repo untouched). Public LB 0.990203.
-Lens: methodology and documentation. Bar: top 50 of about 1,000 teams (top 5%), so the scoring is strict.
-Main document: `Documentation_template.md` (2,169 words). I checked it against `code/business_entity_resolution/README.md`, `src/stack/README.md`, the `attempts/*/results.json` files, the code, and the organisers' data where a claim needed it.
+Package: `submissions/final_package/Apprentice_submission.zip`, public LB 0.990203. I unzipped it to scratch and did not touch the zip or the repo.
+Lens: methodology and documentation. Bar: top 50 of about 1,000 teams (top 5%).
+Main document: `Documentation_template.md`, 3,347 words. I cross-checked it against `code/business_entity_resolution/README.md`, `src/stack/README.md`, every shipped `attempts/*/results.json` and the code (`er_model.py`, `er_feat5/6.py`, `er_gen.py`, `er_lexical.py`, `er_france.py`, `er_frwords.py`, `er_meta.py`, `er_fix.py`, `er_newpairs.py`, `src/single/fit.py`, `src/stack/src/stack_ce.py`, `stage3_feats.py`, `decoy_feats.py`).
 
-## Verdict
+## Scores and verdict
 
-**Does it clear a top-50 bar? Not yet. It is borderline as written. The methodology clears the bar; the write-up does not.**
-The package has three things that most top-5% write-ups lack: label-free decoy statistics learned from the candidate graph, a paired significance rule for every change, and a label-free test-shift guard that rejected features which won in CV. A harsh reviewer can still cut it because of:
-(1) a factual error in the error analysis;
-(2) a contradiction between Section 2.1 and Section 4 about which features look at an S1's other candidates;
-(3) a 363-word Section 4 paragraph that no judge will parse in five minutes;
-(4) France rules that read as hand-tuned on the test set, because the document never says how the word lists and weights were chosen;
-(5) a README step that fails as shipped.
-Much of the strongest evidence exists in the team's research notes but not in the document: the decoy-dense stress test, the one-model ablation, the count estimator validated on US data, and the loss decomposition.
-After the HIGH edits below (about 3-4 hours), this write-up should sit safely inside the top-50 tier on this lens.
-
-| Criterion | Score | One-line reason |
+| Criterion | Score | Reason |
 |---|---|---|
-| Completeness | 8 / 10 | Every template section has real content. Missing: limitations, runtime/cost, a pipeline figure, negative results. |
-| Technical depth and soundness | 8 / 10 | Out-of-fold stacking, stratified entity folds, a correct expected-F0.5 rule with one owner per pool record, and leave-one-country-out (LOCO) tests for France. Weak points: the France rules are not justified in the text, and the two families use different fold schemes. |
-| Originality / insight | 7 / 10 | The label-free decoy markers and the reverse-engineered decoy shift set are genuinely original. The cross-encoder, the LightGBM stack and the meta-ensemble are standard. The best insights are not in the document. |
-| Clarity and structure | 4.5 / 10 | Dense log-style prose (42 semicolons, 72 parentheses). The executive summary is 158 words against the requested 2-3 sentences. There is no diagram, and terms like "band", "route", "lifted", "fair-sample", "France-like parents" and "name-twin" are never defined. |
-| Honesty and credibility | 6 / 10 | Good: the CV-LB gap is explained, the fair-sample checks are shown, and the reconstructed steps are disclosed. Bad: one factual error, one internal contradiction, one stale oracle number, one conclusion that overclaims, and one broken reproduction step. |
-| **Overall (this lens)** | **6.5 / 10** | **Borderline for the top 50. About 8 / 10 after the HIGH and MEDIUM edits.** |
+| Completeness | 9 / 10 | Every template section has real content. It also has a pipeline sketch, a glossary, limitations, compute, a progression table, an ablation and negative results. Missing: a one-line "Model type" field, error-analysis examples, and an explicit reproduction entry point. |
+| Technical depth and soundness | 9 / 10 | Stratified entity folds, out-of-fold inputs at every stacking level, a paired acceptance rule, a decoy-density stress test, a label-free test guard, fair-sample checks and LOCO for France. Soft spots: the decision rule is overclaimed as exact, and the second family gets one clause even though it adds +0.0027 CV. |
+| Originality / insight | 8 / 10 | Several parts are original: the reverse-engineered decoy generator (ten house shifts, marker words, "decoys never have an empty address"), label-free decoy-marker scores with a per-country lift, and the finding that context features win CV but emit decoys on test. The rest is standard: TF-IDF blocking, LightGBM, e5 cross-encoders, stacking. |
+| Clarity and structure | 6.5 / 10 | Well sectioned, with tables and a glossary. But the text is dense and full of numbers. The executive summary is 5 sentences (the template asks for 2-3). "Generator-operator" appears 6 times and is never defined. The candidate-file paragraph and Section 4.3 take several readings. |
+| Honesty and credibility | 8 / 10 | Every number I checked matches the shipped results exactly (table below), and the disclosures are unusually candid. There are four statements a careful judge can catch (HIGH 1-3 below): "every change passed", "no feature compares ... the S1's other candidates", "three times", and "maximizes expected F0.5". |
+| **Overall (this lens)** | **8 / 10** | **Clears the top-50 bar on methodology. In substance it is top-10 grade; on readability it is not yet. About 8.5-9 after the HIGH edits.** |
+
+**Verdict.** On this lens the package advances. Its validation discipline is stronger than what most top-5% write-ups show: paired CV, a label-free measurement of the test shift, a guard that rejected CV winners, and a negative-results table. So is the evidence that the gains come from features, not stage structure (B.2). The risks are credibility and readability:
+- Three sentences overclaim or contradict the shipped code or tables. A judge who reads the code or checks Table B.3 will find them.
+- The document reads like a dense lab log. A judge with five minutes gets the idea from the summary and Table B.1, but will not trust the details without effort.
+
+## Numbers verified
+
+| Claim in the document | Source in the zip | Status |
+|---|---|---|
+| CV 0.99184, US 0.99164, India 0.99213, fold SD 0.00003 | `attempts/029f6_final/results.json` (mean 0.991836, std 3.35e-5) | exact |
+| Train oracle 0.9980, 13.37M pairs, 6.06 per S1 | same file (oracle 0.997985, n_pairs 13,373,981) | exact |
+| Blocking 98.0M pairs, oracle 0.994 | `005f_floor/results.json` (98,021,508; 0.99398) | exact |
+| Stage CVs 0.97008 / 0.97423 / 0.98589 | `005n`, `006`, `016` results.json | exact |
+| FP 12,987 → 5,564; FN 302,721 → 186,753; precision 0.9993; recall 0.976 | derived from pair precision and recall in `016` and `029f6` (about 7.64M true pairs) | consistent |
+| Single-match S1 0.973, 2+ matches 0.990-0.994 | `by_true_matches` in `029f6` | exact |
+| Decision rule 5·Σp(top k)/(Σp + 4k) vs Π(1 − p), floor 0.6, one owner per pool record | `er_model.decide` | exact |
+| Shift set {1,2,3,4,5,7,9,11,13,21} | `er_feat5.py`, `er_feat6.py`, `er_frwords.py`, `stack/decoy_feats.py` | exact |
+| France W = 0.5, C = 0.1, veto and broad word lists | `attempts/029f5_final/train.py`, `er_france.py` | exact |
+| France ≈ 0.981 implied | 0.47·0.99213 + 0.38·0.99164 + 0.15·F = 0.990203 gives F = 0.9805 | arithmetic correct; it is a lower bound (LOW 1) |
+| Decoy-clone stress test, test guard, main-family LOCO grids, GAM ablation | no script in the zip | not reproducible from the package (MEDIUM 7) |
+| "No feature compares a candidate's name or address with the S1's other candidates" | `src/stack/src/stage3_feats.py`: "similarity of r's address/name to the entity's OTHER confident records (anchors, p2 >= 0.9)". Used through `--extra` in steps 7-8 of `src/stack/README.md` (`stack_ce.py` lines 44, 194, 411). | **false for the submitted system** (HIGH 2) |
 
 ## What a judge sees in five minutes
 
-**What impresses (keep it, and make it more visible):**
-- **Label-free decoy-marker scores.** A word is scored (n_d + 1)/(n_d + n_0 + 10). Here n_d counts candidate pairs whose pool name adds or drops the word and whose house number is shifted by a decoy step; n_0 counts the same with equal house numbers. This is weak supervision built from the generator's own signature. It needs no labels, so it transfers to France, and the per-country lift puts all countries on one scale (verified in `src/er_feat6.py` and `src/er_lift.py`). This is the strongest original idea in the package, but in Section 4 it is buried in a parenthesis.
-- **Reverse-engineering the decoy generator:** the shift set {1,2,3,4,5,7,9,11,13,21}, and the fact that decoys never have an empty address (`src/er_fix.py` docstring).
-- **The CV-vs-test trap.** Features that use an S1's other candidates win in CV but emit decoys on test, where decoys are 1.9x denser. The team caught this with a label-free guard. This is the kind of lesson judges remember.
-- **Validation discipline:** a paired per-fold rule (> 2 SE and at least 4 of 5 folds), stratified entity folds, out-of-fold stacked inputs throughout, and LOCO for France.
-- **Correct decision theory.** `decide()` in `src/er_model.py` implements expected F0.5 = 5·Σp_top-k/(Σp + 4k) against P(no match) = Π(1 − p), with one owner per pool record. The document states this formula correctly.
+**Impressive (keep it prominent):**
+- Treating the data as a generator, with evidence: non-matches spike at exactly ten house shifts. The test's 1.94x decoy density was measured without labels.
+- Label-free decoy-marker scores (n_d + 1)/(n_d + n_0 + 10), re-centred per country so they transfer to France.
+- The CV-vs-test trap: context features that win CV (+0.0033, 5/5 folds) lose −0.037 at test decoy density. This is the most memorable lesson in the document.
+- B.2: one LightGBM on all 205 features equals the 5-stage chain (0.98779 both), so the gains come from information, not architecture. Judges rarely see this kind of self-critique.
+- B.3 negative results, and honest disclosure that the leaderboard decided one France change.
 
-**What reads as generic:** TF-IDF plus exact-key blocking, fuzzy-ratio features, a fine-tuned e5 cross-encoder, LightGBM stacking and a meta-model over two families. That is fine, but it should not take up most of the words.
+**Generic (fine, but it should not take most of the words):** TF-IDF plus key blocking, fuzzy-ratio features, e5 cross-encoders, LightGBM stacking, a meta-model over two pipelines.
 
-**What reads as a red flag:**
-- A 17-row progression table in which the late rows gain +0.000015 CV and +0.000002 LB. That looks like leaderboard chasing unless the text says the LB was not used to choose changes.
-- France handled by named word lists and fixed weights with no stated derivation.
+**Red flags a judge could raise:**
+1. The summary says "Every change had to pass a paired 5-fold CV test", but 2.2 says one France change was kept because the leaderboard rose.
+2. 2.1 says no feature compares a candidate with the S1's other candidates. The second family's stage-3 anchor features do exactly that, and the meta-model reads them.
+3. 2.1 says "We saw this three times ... (Table B.3)", but B.3 shows only two context-feature cases.
+4. 4.4 says the rule "maximizes expected F0.5". It is a ratio-of-expectations approximation with greedy one-owner assignment and an empirical 0.6 floor on top.
+5. The late rows of B.1 add +0.00002 CV and +0.000002 LB, and one of them keeps a 32 GB, 2-hour component. Without a cost-benefit sentence this reads as leaderboard grinding.
+6. Test records are used transductively (France marker table, France word lists), which is label-free but never stated as a principle. A judge who finds it alone may suspect test tuning.
 
-## Evidence checks (claims against the package)
+## Against a strong top-10 write-up
 
-| Claim in the document | Source checked | Status |
-|---|---|---|
-| CV 0.99184 (US 0.99164, India 0.99213) | `attempts/029f6_final/results.json`: 0.991836, fold SD 0.000033 | OK |
-| 11.78M test candidates, 6.80 per S1 | counted in `output/candidate_pairs.tsv`: 11,778,648, 6.798 per S1 | OK |
-| Blocking recall 98.1%, oracle 0.994 | `005f`, `006`, `016` results: oracle 0.99398 | OK |
-| "oracle macro F0.5 of 0.9969" after the extra keys, reverse retrieval and second-family pairs | `029f6_final/results.json`: oracle **0.99798** on 13.37M train pairs | **Stale.** 0.9969 matches an earlier parent. |
-| FP 13,043 → 5,582 and missed 302,550 → 187,067 | Derived from pair precision/recall in `016` and `029f6` results, with 7,638,365 gold pairs: 016 about 12,990 FP / 302,700 missed; final about 5,560 FP / 186,700 missed | Close, but they do not reproduce from the shipped results. The source is not stated. |
-| FN: "S1 with an empty or "None" address whose name is shared by other S1" | Train S1 has **0** empty or "None" addresses out of 2,206,821; S2 has 168,967 | **Wrong.** The empty address is on the pool record. The document's own Section 4 says so ("empty-address pool records"). |
-| FN: "pairs never retrieved by blocking (the largest remaining source)" | Oracle 0.99798 means unretrieved pairs cost at most 0.0020 of the 0.0082 loss | **Contradicted** by the shipped results. |
-| 2.1: "Every feature of the main pipeline compares one pool record with its own S1" | `src/er_feat4.py` has S1-side rank, gap to best candidate, count with p ≥ 0.5, and Σp; Section 4 lists "among the S1's own candidates" | **Internal contradiction.** The banned family is content coherence (`er_feat3.py`), not score ranks. |
-| Cross-encoder = multilingual-e5-small | The README and `027p_meta` inputs also use **e5-base** (`ce_base`, through `ce2`) | Incomplete |
-| Conclusion: decoy-marker and generator-operator features "lifted CV from 0.974 to 0.988" | Table B: that span also includes the band model, char retrieval, lexical correction, French parser, pool-side competition and the cross-encoder | Overclaim |
-| README: `python src/er_france.py 029f5_final` | `attempts/029f5_final/` is **not in the zip**. `load_attempt` fails, and `030q_fix` reads its output. | **The reproduction chain breaks.** The folder exists in the repo; add it. |
-| Appendix A: "`attempts/` (the settings of every stage used, one folder per stage)" | 029f5_final is missing; `027p_meta` says `PREDICT ... 027l_meta` and `PRE_STEPS ... 029f2_final` | Stale strings |
-| Two families' folds | Main family: StratifiedKFold (country × match count). Second family: `crc32(S1 id) % 5`. | Disclosed only as "its own entity folds". Meta-model CV may be slightly optimistic. |
+A top-10 write-up usually has: a 3-sentence summary, a diagram near the top, the one key insight stated early, an ablation of the final model, error analysis with categories and 2-3 real examples, runtime and cost, and limitations.
 
-## Cut risks a harsh top-50 reviewer would use (ranked)
+This one beats the typical top-10 write-up on validation rigor, negative results and honest disclosure. It matches it on ablation (B.1, B.2), compute and limitations. It falls short on three things:
+- **Readability:** long sentences, jargon, 5-decimal numbers inside prose.
+- **Error analysis:** false positives are described but not counted by type, and there are no concrete examples.
+- **The second family:** a +0.0027 CV component described in one clause.
 
-1. **The factual error in the FN analysis** (S1 empty addresses do not exist). It suggests the authors do not know their own error profile. It also contradicts the document's own Section 4.
-2. **The sibling-feature contradiction** (2.1 against Section 4 and the code). The document's central lesson is "we banned features that use other candidates", and then Section 4 lists such features.
-3. **The Section 4 wall of text.** The judge cannot find the pipeline, the France logic or the decision rule without reading 363 words in one paragraph.
-4. **France looks test-tuned.** VETO_WORDS, W = 0.5, C = 0.1, the rename rule and the country lift appear without derivation. France is 15% of test and the only unlabelled country, so every judge will look here.
-5. **Reproducibility.** The missing attempt folder breaks the documented chain. There are "reconstructed" steps and two Python environments. A reviewer who tries step 105 of the README stops there.
-6. **Micro-gain rows and one LB number per row** read as leaderboard-driven iteration, and there is no ablation that isolates components.
-7. **Numbers that disagree with the shipped `results.json`** (oracle, FP/FN counts).
-8. **No limitations, runtime or cost, and a leftover template instruction** at the end ("**Note:** Teams can modify sections…"). These look unfinished.
+Among the write-ups of the top-50 LB teams I would expect this one in the top quarter on methodology. It becomes a top-10 contender if the HIGH edits land.
 
-## Against a strong top-10 write-up: what is missing
+## Prioritised edits to Documentation_template.md
 
-| Top-10 write-ups usually have | This document |
-|---|---|
-| One pipeline figure or diagram | None |
-| A 2-3 sentence summary with the headline numbers | 158 words, no oracle or recall headline |
-| A clean ablation (remove one component, show the delta) | Cumulative progression only. The one-model ablation exists in the research notes (r19) but not here. |
-| A dedicated section on the unseen country | France is spread over Sections 2.1, 4 and 5 and the table, with no derivation |
-| Quantified error buckets | Qualitative bullets, one of them wrong. A loss decomposition exists (r20) but is not used. |
-| Negative results | One sentence ("measured this three times") with no numbers |
-| Runtime, compute and cost | In the README, not in the document. No totals. |
-| Limitations and future work | None |
+Length budget: the document is 3,347 words. The edits below add about 350 words and remove about 150 (MEDIUM 6 and LOW 4). Keep the result at or below about 3,500 words.
 
----
+### HIGH (credibility and the first five minutes; about 2-3 hours in total)
 
-## Prioritised edits to `Documentation_template.md`
-
-Numbers marked **[notes]** come from the team's research notes in `docs/research/`, outside the zip. Check each against its log before pasting. All other numbers are verifiable inside the zip.
-Length budget: aim for at most 3,000 words (now 2,169). The HIGH edits roughly replace what they remove. The MEDIUM additions add about 600 words.
-
-### HIGH (do all; about 3-4 hours)
-
-**H1. Fix the false-negative bullet (factual error, and it contradicts the oracle).** Section 5, current:
-> - **Common false negatives (missed matches):** pairs never retrieved by blocking (the largest remaining source); true pool records claimed by another S1 with a near-identical name; S1 with an empty or "None" address whose name is shared by other S1 (no distinguishing evidence); records with one true match, which score lowest.
+**HIGH 1. Executive summary: fix the "every change" overclaim and cut it to 3 sentences.**
+Current (whole paragraph):
+> We treat the data as the output of a generator that adds noise to true matches and plants near-copy decoys, and we model that generator. Candidates come from word and character TF-IDF plus exact keys (train candidate oracle F0.5 0.998). LightGBM models score each pair with pair-local features, including label-free decoy-marker statistics that transfer to the unlabelled country (France), and a cross-fitted meta-model combines them with fine-tuned e5 cross-encoders and a second LightGBM model family. An expected-F0.5 rule with one owner per pool record picks each answer. Every change had to pass a paired 5-fold CV test and a label-free test-shift guard: CV 0.99184 (US and India), public leaderboard 0.990203.
 
 Replace with:
-> - **Common false negatives (missed matches):** of the CV loss (1 − 0.99184 = 0.0082), at most 0.0020 comes from true pairs never retrieved (candidate oracle 0.9980). The rest are true candidates that score below the floor. The dominant case is a pool record with an empty or "None" address whose normalized name is also claimed by another S1 of the same country (a *name twin*). With no address the twins are interchangeable. On the last analysed parent (CV 0.99051), these records held two thirds of the in-candidate headroom (+0.0042 of +0.0064 oracle F0.5) **[notes r20]**. S1 records never have an empty address. S1 with a single true match score lowest (0.973, against 0.990-0.994 for two or more), because one miss costs the whole entity.
+> We model the generator behind the data: true matches are noisy copies of an S1 record, and unmatched pool records are near-copy decoys made by a few operators (a house number shifted by one of ten steps, one inserted marker word, a swapped legal form), which the test set contains at about 1.9x the train rate. Candidates come from TF-IDF retrieval and exact keys (train oracle F0.5 0.998). LightGBM models on pair-local features score each pair, including label-free decoy-marker scores that also work for unlabelled France; a cross-fitted meta-model combines them with fine-tuned e5 cross-encoders and a second LightGBM family, and an expected-F0.5 rule with one owner per pool record picks each answer. US and India changes were accepted only on a paired 5-fold CV test plus a label-free test-shift guard (CV 0.99184); France rules were set by leave-one-country-out tests and label-free counts (public leaderboard 0.990203).
 
-**H2. Remove the sibling-feature contradiction and back "three times" with numbers.** Section 2.1, current:
-> So any feature that looks at an S1's other candidates (coherence, sibling agreement) wins in CV and emits decoys on test; we measured this three times and banned such features. Every feature of the main pipeline compares one pool record with its own S1; competition features only ask how strongly other S1 claim the same pool record.
+(The second sentence drops "character" because train candidates have no character-route pairs; see Limitation 4.)
 
-Replace with:
-> Features that judge a candidate by its agreement with the S1's other candidates therefore win in CV and emit decoys on test. We saw this three times and dropped each family (Table B.3). A pool-record graph gained +0.0033 in normal CV but lost 0.037 (0/5 folds) once decoys were duplicated to test density. An S1-context stacker gained +0.0028 CV but emitted 3.4x (US) and 5.8x (India) the train rate of extra pairs on test **[notes r7, r4]**. What remains is pair-local content features plus score-based context: the rank and margin of a pair's earlier-stage probability among the S1 that claim the same pool record and among the S1's own candidates. No feature compares a candidate's name or address with the S1's other candidates.
-
-**H3. Add evidence for the two key EDA claims.** Section 2.1: after the sentence ending "a changed unit number.", add:
-> On name-similar train pairs, non-matches spike at exactly these ten shifts (13.6k-15.8k pairs each on a 10% sample, against 1k-3k at every other difference, including all negative ones) **[notes r9]**. Decoys never have an empty address.
-
-Then replace "- Test has about 1.9x the decoy density of train, and decoys come in clusters that share one perturbed house number." with:
-> - Test has about 1.9x the decoy density of train. We measured this without labels: per S1, candidate pairs whose house numbers differ by one of the ten shifts are 1.94x as frequent on test as on train (US), while every other difference keeps the train rate **[notes r9]**. Test decoys also come in clusters that share one perturbed house number.
-
-**H4. Split Section 4 into readable parts, and add a diagram and a France subsection.** Replace the whole "**Model type:** LightGBM throughout: stage 1 (127 leaves, 600 rounds), … so it mainly removes decoy-like France pairs." paragraph (363 words) with the following.
-
-> **4.1 Pipeline**
-> ```
-> S1 + pool records, per country
->  -> normalize (native-script words -> Latin, dictionary learned from train pairs)
->  -> blocking: word TF-IDF top-40 + exact keys + char 3-gram route + extra name keys + reverse retrieval
->  -> stage 1 LightGBM -> stage 2 LightGBM (+ competition features); keep p >= 0.001
->  -> band model (all features) -> lexical correction -> generator-operator correction
->  -> e5 cross-encoder stack on the uncertain band
->  -> meta-model over both model families (US, India) | France blend (4.4)
->  -> empty-address correction -> expected-F0.5 decision (4.5)
-> ```
-> **4.2 Models** (LightGBM unless stated; every train input is out-of-fold)
-> 1. *Stages 1-2* (127 leaves, 600 rounds). Stage 2 adds competition features from stage-1 out-of-fold probabilities.
-> 2. *Band model.* One model on stage-2 pairs with p ≥ 0.001 and every feature family.
-> 3. *Retrieval-route classifier.* It scores pairs added by char retrieval, extra keys and reverse retrieval; pairs are kept at p > 0.001.
-> 4. *Two corrections boosted from the previous logit.* First 42 cross-fitted lexical likelihoods, then generator-operator plus pool-side competition features (255 leaves, 800 rounds).
-> 5. *Cross-encoder.* multilingual-e5-small and e5-base, fine-tuned as pair classifiers on two S1 halves split by fold, so every train score is out-of-fold (held-out AUC 0.9996). A small LightGBM stacks the score on 0.003 ≤ p ≤ 0.997.
-> 6. *Meta-model* (US, India; 127 leaves, 600 rounds, cross-fitted on our folds). It runs over the union of our pairs and a second LightGBM family's pairs (src/stack). Inputs: both logits, their min / max / sum / difference, both families' cross-encoder scores, a few pair features, the logit of one flat LightGBM on all 205 band features, and pool-side competition. The second family uses its own entity folds (crc32 of the S1 id), so this CV may be slightly optimistic. The LB gain confirmed it.
-> 7. *Empty-address correction.* Boosted from the meta logit using name-twin structure among a pool record's claimers. Only empty-address records may gain probability (decoys never have an empty address); every other pair can only lose.
->
-> **4.4 France (no labels).** Nothing is trained on France. Each rule was chosen by LOCO (fit on US, score India as if it were unlabelled, and the reverse) or by label-free counts on test.
-> - *Scale:* decoy-marker scores are re-centred per country as logit(score) − log(Σn_d/Σn_0). France's table is built from its own test candidates.
-> - *Blend:* p = σ(0.5·logit p_main + 0.5·logit p_second) over both families' pairs [state how W = 0.5 was fixed]. The cross-encoder logit enters with weight 0.1 on band pairs (LOCO +0.00053 / +0.00052).
-> - *Decoy-word veto:* pairs whose pool name adds *participations, holding, distribution* or *international* get p = 0. Each word is added about 34k times in pool names but appears 1-203 times in S1 names, and 94% of its insertions carry a decoy house shift **[notes r1, r17]**. The dual-use words *groupe, developpement, france* are not vetoed. A count estimator gives them a 0.93 truth rate at equal house numbers; on US "partners" the same estimator predicts 0.84 against a labelled 0.835 **[notes r17]**.
-> - *Renamed business at the S1's own unique address:* max(blend, p_second) (LOCO +0.00033 / +0.00062).
-> - *Empty-address correction* fitted on US + India without the country flag (transfer +0.00006 US→India, 5/5; +0.00002 India→US).
-
-Keep the current Threshold line as **4.5**, and add: "The rule maximises expected F0.5 per S1 under the model's marginals. P(no match) is Π(1 − p)." (verified against `decide()`).
-
-**H5. Make the validation protocol a visible block.** Section 2.2, current:
-> Validation: 5-fold CV over S1 (stratified by country and match count), every stacked input of the main pipeline out-of-fold, and a change is kept only if it gains more than 2 standard errors and in at least 4 of 5 folds; before any upload, a label-free test guard compares emitted pairs per S1, empty-answer rate and house-conflict share per country.
+**HIGH 2. Section 2.1, last bullet: make the central lesson match the shipped system and Table B.3.**
+Current:
+> - Consequence: features that judge a candidate by its agreement with the S1's other candidates win in CV and emit decoys on test. We saw this three times and dropped each family (Table B.3). What remains is pair-local content features plus score-based context: the rank and margin of a pair's earlier-stage probability among the S1 that claim the same pool record and among the S1's own candidates. No feature compares a candidate's name or address with the S1's other candidates.
 
 Replace with:
-> **Validation protocol**
-> - 5-fold CV over the 2.21M train S1, stratified by country × match count. Every stacked input is out-of-fold. Final fold SD: 0.00003.
-> - Acceptance: paired per-fold gain over the parent > 2 SE and positive in at least 4 of 5 folds.
-> - Stress test at test density: features that could react to decoy density were re-scored with train decoys duplicated to about 2x [confirm scope].
-> - Label-free test guard before every upload: per country, compare emitted pairs per S1, empty-answer rate and the share of emitted pairs with conflicting house numbers between test and train. A change that emits far more extra pairs on test than on train is rejected even if CV improves.
-> - France: LOCO plus label-free counts (4.4).
-> - The public LB was recorded after each upload and never used to choose a change. [Keep this sentence only if it is strictly true.]
+> - Consequence: features that judge a candidate by its agreement with the S1's other candidates win in CV and emit decoys on test, where each S1 has about twice as many decoy siblings. Both such families in Table B.3 (pool-record graph features, an S1-context stacker) were dropped. In our main family, context enters only through scores: the rank and margin of a pair's earlier-stage probability among the S1 that claim the same pool record and among the S1's own candidates. The second family keeps one content-context group, the similarity of a pool record to the S1's own confident records (stage-2 p ≥ 0.9); the meta-model that reads it passed the same label-free test guard before upload.
 
-**H6. Make the shipped numbers agree.** Section 3, current: "the candidate-recall ceiling on train rises to an oracle macro F0.5 of 0.9969." Replace with: "…rises to an oracle macro F0.5 of 0.9980 (13.37M train pairs; `attempts/029f6_final/results.json`)."
-Section 5, current: "Out-of-fold false-positive pairs fell from 13,043 (band model) to 7,904 (final correction) and 5,582 (final), and missed true pairs from 302,550 to 187,067." Recompute these from the shipped files (they imply about 12,990 → 5,560 FP and 302,700 → 186,700 missed), or name the run they came from.
+Before using this text, the team should confirm that the meta-model upload passed the guard. If a third dropped case exists, add it as a row in B.3 and keep "three".
 
-**H7. Package fix (outside this document, but it breaks the README chain the document points to).** Add `attempts/029f5_final/train.py` to the zip. The repo copy matches 029f6_final except for DEPENDS. In Appendix A, "the settings of every stage used" is only true after that.
-
-### MEDIUM (about 2 hours; these lift originality and credibility)
-
-**M1. Rewrite the executive summary to three sentences with numbers.** Replace the paragraph "A multi-stage blocking + gradient-boosting pipeline built around the data generator's noise and decoy operators. … uses a logit blend of the two families with a decoy-word veto." with:
-> We treat the data as the output of a generator that adds noise to true matches and plants near-copy decoys, and we model that generator. Candidates come from word and character TF-IDF plus exact keys (train candidate oracle 0.998). LightGBM models score each pair with pair-local features, including label-free decoy-marker statistics that transfer to unlabelled France, and a cross-fitted meta-model combines them with fine-tuned e5 cross-encoders and a second LightGBM family. An expected-F0.5 rule with one owner per pool record picks each answer. Every change had to pass a paired 5-fold CV test and a label-free test-shift guard (CV 0.99184, public LB 0.990203).
-
-This also fixes "score pairs with label-free features". Some features are cross-fitted on labels (lexical likelihoods, the native-script dictionary).
-
-**M2. Fix the conclusion's attribution and add limitations.** Current:
-> Modelling the generator, rather than generic string similarity, drove most of the gains: decoy-marker and generator-operator features lifted CV from 0.974 to 0.988 and the leaderboard from 0.963 to 0.985.
+**HIGH 3. Section 4.4: do not claim exact optimality, and show the floor's evidence.**
+Current:
+> Then pairs with p ≤ 0.6 are dropped (floor tuned by paired CV). The rule maximizes expected F0.5 per S1 under the model's marginals.
 
 Replace with:
-> Modelling the generator drove the largest single steps: pair features with house-shift relations (+0.009 CV), decoy-marker scores (+0.002) and generator-operator codes (+0.001). The second model family added +0.0027 CV (+0.0038 LB with the France blend). One LightGBM on all 205 features matches the whole correction chain (0.98779 both) **[notes r19]**, so the gains came from the features, not the stage structure.
+> Then pairs with p ≤ 0.6 are dropped. The prefix score is a plug-in approximation of expected F0.5 (a ratio of expectations with pairs treated as independent), and the one-owner step is greedy per pool record, so the rule is near-optimal rather than exact. The 0.6 floor is an empirical correction on top of it, chosen by paired CV: on the same stage-1 probabilities it raises CV from 0.97008 to 0.97083 (`attempts/005n_indic_nocoh` vs `005f_floor`).
 
-Keep the "most important lesson" sentence, then add **Limitations**:
-> (1) The pipeline has about 20 steps in two environments. Two steps of the second family were rebuilt from logs, and the GPU steps are not bit-identical on rerun.
-> (2) France rests on LOCO proxies and label-free counts; its true score is unknown.
-> (3) Empty-address pool records shared by name twins are a ceiling of about 0.004 F0.5 that no feature here can resolve.
-> (4) Train candidates lack the character-route pairs that test has.
+**HIGH 4. Glossary: define the terms the document actually uses.**
+Current:
+> **Glossary.** *Band*: pairs whose stage-2 probability is ≥ 0.001 (the cross-encoder band is 0.003-0.997). *Route*: a candidate source (character retrieval, extra keys, reverse retrieval). *Name twin*: another S1 of the same country with the same normalized name. *LOCO*: fit on US and score India as if unlabelled, and the reverse. *Lift*: a country's marker scores re-centred by its own decoy base rate.
 
-**M3. Add B.2, a one-model ablation (about 80 words and a 5-row table)** **[notes r19]**:
+Append:
+> *Generator operator*: one edit the data generator applies to make a noisy match or a decoy (house shift, truncated digits, word insertion or drop, legal-form swap, reorder, acronym); generator-operator features encode which operators link a pair. *Chain probability*: our family's probability after its last correction, before the meta-model. *Second family*: an independently built LightGBM and cross-encoder pipeline (`src/stack`) with its own blocking and folds. *Fair sample*: a fixed, label-free 10% of train S1 that gets the same extra candidate sources as test; a gain there is about 10x its effect on full CV.
 
-| Variant (US + India CV) | Macro F0.5 |
-|---|---|
-| Correction chain up to the cross-encoder stack (5 LightGBM stages) | 0.98779 |
-| One LightGBM, all 205 features | 0.98779 |
-| Same, without generator-operator and cross-encoder features | 0.98638 (−0.00141, 0/5) |
-| One XGBoost, same 205 features | 0.98778 |
-| Logistic GAM, 16 features | 0.98017 |
+Then shorten the "Fair sample" bullet in 2.2 to: "Fair sample (glossary): changes that add candidate sources are also checked paired on it."
 
-Add one sentence: the top gain shares are pool-side and S1-side margins, then the cross-encoder and decoy markers. This answers "is this complexity necessary?" before a judge asks.
+**HIGH 5. Section 5: quantify the errors and show real examples.**
+Current:
+> - **Common false positives (wrong merges):** decoys that keep the name and address but shift the house number by a typical step or insert a generic business word; legal-form swaps; unit-number changes in the same building. Out-of-fold false-positive pairs fell from 12,987 (band model) to 5,564 (final), and pair precision is 0.9993.
 
-**M4. Add B.3, negative results (4-5 rows, about 90 words).** Include the pool-record graph (+0.0033 CV, −0.037 at doubled decoys), the S1-context stacker (+0.0028 CV, 3.4x / 5.8x extra test pairs), the coherence features [fill from your log], broader reverse retrieval (it finds only 4.9% of the remaining misses **[notes r20]**), and the broad France veto (−0.0024 US for the same kind of rule in-country **[notes r17]**). Judges value this far more than +0.000015 rows.
+Keep that text and add a compact table computed once from the final out-of-fold predictions (`030p_fix` with gold and the `feat5` / `gen` columns). **Fill it only with computed counts; do not estimate.**
 
-**M5. Clean up Table B.1.**
-(a) Add a footnote: "From the row '+ extra keys for every train S1', the train candidate set gains the pairs test already had, so CV rises by +0.001 for reasons other than the model. The fair-sample figure (paired CV on a fixed label-free 10% S1 sample where train and test candidates match) is the comparable gain."
-(b) Merge the "+ single flat LightGBM as a meta-model input | 0.99184 (+0.000015) | 0.989992" row into the one above, or mark it "neutral (+0.000015, passes the paired rule)".
-(c) Current: "| + empty-address / name-twin correction applied to France (final) | France only | 0.990203 |". In the CV column, write "transfer +0.00006 (5/5) / +0.00002", as Section 4 already says.
-(d) Use one precision throughout: 5 decimals for CV, 6 for LB.
+> | Error type (final out-of-fold, US + India) | Pairs | Share |
+> |---|---|---|
+> | FP: house number shifted by a decoy step | [count] | [%] |
+> | FP: pool name adds one word | [count] | [%] |
+> | FP: legal-form swap or unit conflict | [count] | [%] |
+> | FP: other | [count] | [%] |
+> | FN: empty or "None" pool address with a name twin | [count] | [%] |
+> | FN: other, scored below the floor | [count] | [%] |
 
-**M6. Add a runtime and cost line to Appendix A.** Example: "End to end: about N CPU hours on 12-vCPU / 96 GB machines (blocking, stage 1-2 CV and address retrieval 1-2.5 h each), plus about M Kaggle 2x T4 session hours (e5-small 170 + 22 min, e5-base 140 min, second-family cross-encoders about 47 min + 2 h + 4.7 h + 2 × 75 min). Test inference alone: X h." Fill N, M and X from your logs.
+Add two short real train examples, quoted verbatim from the data, each with S1 name and address, pool name and address, p, and the reason: one decoy false positive and one missed empty-address twin.
 
-**M7. Define jargon on first use, or add a four-line glossary under 2.2.** Terms: *band* (pairs with 0.003 ≤ p ≤ 0.997), *route* (character-retrieval candidate source), *name twin*, *LOCO*, *fair sample*, *lifted* (re-centred per country). Replace "France-like parents" with "parents built as they are for France (country tables from their own pairs)".
+Also add one line: "S1 with no true match (5.6% of train) score 0.997, so the empty-answer option rarely fires wrongly." (`by_true_matches`: 123,247 S1, F0.5 0.99697.)
 
-### LOW (15-30 minutes)
+### MEDIUM (consistency and depth; about 1.5-2 hours)
 
-- **L1.** Delete the leftover template line at the end: "**Note:** Teams can modify sections according to their approach while maintaining clarity and technical depth."
-- **L2.** In Section 3, turn "**Candidate pairs generated:** …" into a 3-row table: raw union, train 98.0M (44 per S1) / test 80.5M (46 per S1); final candidate set, train 13.37M / test 11.78M (6.80 per S1); oracle 0.994 → 0.998. Keep the one-line definition of candidate_pairs.tsv.
-- **L3.** Section 5, current: "France (15% of test) has no labels and scores lower, so the leaderboard sits below CV." "Scores lower" cannot be verified. Write instead: "If US and India held their CV on test, the public LB would imply France ≈ 0.981. The 1.9x test decoy density probably lowers US and India too, so this is only a bound."
-- **L4.** Code hygiene a judge may see: `attempts/027p_meta/train.py` has `PREDICT ... 027l_meta` and `PRE_STEPS` citing `029f2_final`; `src/common.py` carries unused generic metrics (smape, mae, map@k) and an `mps` device default. Tidy these, or ignore them if time is short.
+**MEDIUM 1. Section 6: the +0.009 row is not only house shifts.**
+Current:
+> Modelling the generator drove the largest single steps: pair features with house-shift relations (+0.009 CV), decoy-marker scores (+0.002) and generator-operator codes (+0.001).
 
-## Recommended order
+Replace with:
+> Modelling the generator drove the largest single steps: pair features for name specificity, house-number relations and legal form (+0.009 CV), decoy-marker scores (+0.002 CV but +0.007 public LB) and generator-operator codes (+0.001).
 
-H1, H2, H6 (30 min: removes the errors) → H4 (90 min: the biggest clarity gain) → H5, H3 (40 min) → H7 (5 min, package) → M1, M2 (40 min) → M3, M4, M5 (60 min) → the rest.
+**MEDIUM 2. Add the CV-LB gap story to B.1. It is free, verifiable evidence for the decoy-shift hypothesis.**
+After the B.1 footnote, add:
+> The CV-LB gap fell from 0.011 (third row) to 0.004 when the decoy markers were added (+0.002 CV, +0.007 LB), and stayed between 0.0011 and 0.0021 afterwards. This fits the label-free finding that test is decoy-denser; France, which gains from the same label-free features, also contributes.
+
+**MEDIUM 3. Limitation 3 contradicts the empty-address correction.**
+Current:
+> (3) Empty-address pool records shared by name twins are a ceiling of about 0.004 F0.5 that no feature here resolves.
+
+Replace with:
+> (3) Empty-address pool records shared by name twins cost about 0.004 F0.5 (measured on the 0.99051 parent). The empty-address correction recovers only a small part (0.99177 → 0.99184 CV), because with no address the twins carry no separating evidence.
+
+**MEDIUM 4. B.1: label the leaderboard-kept France row and explain the fair-sample scale.**
+Current row:
+> | + empty-address correction applied to France (final) | France only (transfer +0.00006, 5/5 / +0.00002) | **0.990203** |
+
+Replace with:
+> | + empty-address correction applied to France (final) | France only (transfer US→India +0.00006, 5/5; India→US +0.00002, not significant); kept on leaderboard evidence (+0.00021) | **0.990203** |
+
+Append to footnote ¹ (current text: "The fair-sample figure is the comparable gain."):
+> Fair-sample gains are measured on the 10% sample where the change acts, so the full-CV effect is about a tenth (+0.00049 → +0.00005 in the row above).
+
+**MEDIUM 5. Section 4.2, item 6: describe the second family. It is the largest late gain.**
+Current:
+> The second family (src/stack) is a separately built LightGBM pipeline with its own blocking, stage-3 stack and in-country e5 cross-encoders.
+
+Replace with:
+> The second family (src/stack) was built independently in its own environment. It has its own normalization and transliteration, blocking, a two-stage LightGBM with name-specificity features, label-free decoy features with the same country lift, and a stage-3 stack over three e5 cross-encoders (one cross-country, two in-country). For France it adds a cross-country e5-base cross-encoder, its own decoy stacker and a marker veto.
+
+In the same item, extend the fold caveat. Current:
+> The second family uses its own entity folds (crc32 of the S1 id), so this CV may be slightly optimistic.
+
+Replace with:
+> The second family uses its own entity folds (crc32 of the S1 id), and the cross-encoder halves ({0,1} / {2,3,4}) are not nested in the meta-model folds, so this CV may be slightly optimistic.
+
+**MEDIUM 6. Section 3: move the candidate-file rule to the README, which already has it verbatim.**
+Current (the paragraph under the table):
+> `candidate_pairs.tsv` lists every pair the final models run inference over: our pairs that pass the stage-2 filter (p ≥ 0.001) or were added after it (for US and India also chain probability ≥ 0.001, the meta-model's input), plus every candidate of the second model family (its cascade: p > 0.02, top 10 per S1). The decision uses the same set except 58,364 second-family pairs that our stage 2 scored below 0.001 (scored, never matched). France has twice the pairs per S1 because its pairs skip the chain-probability cut before the France blend.
+
+Replace with:
+> `candidate_pairs.tsv` is the union of both families' pairs that the final models score; the exact rule, including the 58,364 scored-but-never-matched pairs, is in the README ("Candidate file"). France has twice the pairs per S1 because its pairs are not cut before the France blend.
+
+(This saves about 60 words. If the compliance review wants the full rule in this document, move it to Appendix A rather than deleting it.)
+
+**MEDIUM 7. State the transductive use of test data, and admit that the validation checks are not shipped.**
+In 2.2, after the "France: leave-one-country-out ..." bullet, add:
+> - Test data without labels: test records are used, label-free, in three places: the France decoy-marker table, the France word lists (`src/er_frwords.py`) and the test guard's summary counts. No test label or leaderboard score enters any feature.
+
+After Limitation (5), add:
+> (6) The decoy-clone stress test, the test guard, the LOCO grids of our family and the GAM ablation were run with analysis scripts that are not in the package; the package reproduces the pipeline, not these checks.
+
+**MEDIUM 8. Cost-benefit sentence, to defuse the leaderboard-grinding reading of B.1's late rows.**
+Add to Section 6, after the B.2 sentence:
+> A production version would keep one LightGBM on all features (B.2) plus the meta-model, and drop the stage chain and the flat-model input (+0.00002 CV at about 32 GB and 2 hours).
+
+**MEDIUM 9. Appendix A: name the entry points, as the template asks.**
+Current:
+> the final decision step takes 19 s from the saved probabilities.
+
+Replace with:
+> Entry points: the README command list rebuilds both output files from the raw TSVs. Its last command, `python src/er_predict.py 029f6_final --from-probs 030q_fix`, writes them in 19 s once the cached probabilities exist (the cache is not shipped).
+
+### LOW (polish; under 1 hour)
+
+1. Section 5. Current: "the higher test decoy density probably lowers US and India too, so this is only a bound." Replace with: "the higher test decoy density probably lowers US and India too, so 0.981 is a lower bound for France (the public split's country mix may also differ)."
+2. In prose, round to 3-4 decimals ("+0.0003 / +0.0006"). Keep 5 decimals in tables only. Six "0.0000x" figures in running text read as leaderboard arithmetic.
+3. Section 4: add the template's field after the 4.2 heading: "**Model type:** LightGBM (pair models, corrections, meta-model) with fine-tuned multilingual-e5 cross-encoders (small, base)."
+4. Section 4.2, "Pretrained models" paragraph: cut to one sentence, since the README carries the revisions and licences: "Pretrained: multilingual-e5-small and e5-base (MIT, pinned revisions, fine-tuned on training pairs only; 12 checkpoints); LightGBM 4.7.0; no external data; all libraries permissive except Unidecode (GPL-2.0, second family only)."
+5. Section 4.2, item 5: add "on test each S1 is scored by one half model, chosen by its id, as on train". This shows care about train/test score distributions (`er_extend.py parity`).
+6. The Section 2.1 evidence bullet (the "13.6k-15.8k pairs" histogram) is the best single piece of evidence in the document. If there is room, add it as a 12-number table B.4 (count per house-number difference).

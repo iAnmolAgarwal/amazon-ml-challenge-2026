@@ -4,7 +4,9 @@ usage: python src/er_predict.py <attempt_id> [--tag ""] [--train-frac F] [--from
 
 Writes submissions/archive/NN_<attempt_id>.tsv (matching_results format),
 submissions/archive/NN_<attempt_id>.candidates.tsv (candidate_pairs format: every pair the final models run inference over)
-and submissions/archive/NN_<attempt_id>.json (run manifest: fraction, sample hash, features, params, source and output hashes).
+submissions/archive/NN_<attempt_id>.json (run manifest: fraction, sample hash, features, params, source and output hashes)
+and submissions/archive/NN_<attempt_id>.probs.parquet (s1_idx, pool_idx, prob, decided: every candidate pair with its final
+probability; decided = in the CAND_BAND set; src/verify_final.py rebuilds both TSVs from it).
 CAND_BAND = (attempt, t): only pairs that attempt scored with p >= t, plus pairs it never scored (added after it, e.g. by
 retrieval), are decided on. This repeats the upstream filter: the band models after stage 2 score exactly these pairs.
 CAND_ALSO = folder with the second model family's p_test_*.parquet (a_id, r_id): its candidate pairs are scored by the
@@ -83,6 +85,19 @@ def train_and_score(a, cfg, mod, get, cache, frac, t0):
     return pairs, keep, yv, cols
 
 
+def decide_and_write(pairs, cand, ts1, tpool, get, cfg, mp, cp):
+    """Decides on pairs and writes the matching TSV (mp) and the candidate TSV of cand (cp); ts1 / tpool: s1_idx / pool_idx -> entity_id."""
+    pred = get("decide")(pairs, cfg, floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"))
+    name = lambda df: df.join(ts1, on="s1_idx", maintain_order="left").join(tpool.rename({"entity_id": "pid"}), on="pool_idx", maintain_order="left")
+    m = name(pred.sort(["s1_idx", "prob", "pool_idx"], descending=[False, True, False])).group_by("entity_id", maintain_order=True).agg(pl.col("pid").alias("ids"))
+    assert pred.join(pairs, on=["s1_idx", "pool_idx"], how="anti").is_empty(), "a match is not a scored candidate"
+    c = name(cand.select("s1_idx", "pool_idx").sort("s1_idx", "pool_idx")).group_by("entity_id", maintain_order=True).agg(pl.col("pid").alias("ids"))
+    ids = ts1["entity_id"].to_list()
+    write_lists(mp, ids, m, "matched_entity_ids")
+    write_lists(cp, ids, c, "candidate_entity_ids")
+    return pred
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("attempt_id")
@@ -93,7 +108,7 @@ def main():
     cfg = load_config()
     mod = load_attempt(a.attempt_id)
     get = lambda name: getattr(mod, name, getattr(M, name))
-    frac = a.train_frac or get("TRAIN_FRAC")
+    frac = None if a.from_probs else a.train_frac or get("TRAIN_FRAC")
     cache = Path(cfg["cache_dir"])
     t0 = time.time()
     if a.from_probs:
@@ -119,21 +134,16 @@ def main():
         extra = full.join(x, on=["s1_idx", "pool_idx"], how="semi").join(pairs, on=["s1_idx", "pool_idx"], how="anti")
         cand = pl.concat([pairs, extra])
         print(f"candidate file: {len(cand):,} pairs ({len(extra):,} second-family pairs below the band: scored, not decided on)", flush=True)
-    pred = get("decide")(pairs, cfg, floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"))
-    name = lambda df: df.join(ts1, on="s1_idx", maintain_order="left").join(tpool.rename({"entity_id": "pid"}), on="pool_idx", maintain_order="left")
-    m = name(pred.sort(["s1_idx", "prob", "pool_idx"], descending=[False, True, False])).group_by("entity_id", maintain_order=True).agg(pl.col("pid").alias("ids"))
-    assert pred.join(pairs, on=["s1_idx", "pool_idx"], how="anti").is_empty(), "a match is not a scored candidate"
-    c = name(cand.select("s1_idx", "pool_idx").sort("s1_idx", "pool_idx")).group_by("entity_id", maintain_order=True).agg(pl.col("pid").alias("ids"))
     out = ROOT / "submissions" / "archive"
     out.mkdir(parents=True, exist_ok=True)
     n = next_n(out)
     mp, cp = out / f"{n:02d}_{a.attempt_id}.tsv", out / f"{n:02d}_{a.attempt_id}.candidates.tsv"
+    pred = decide_and_write(pairs, cand, ts1, tpool, get, cfg, mp, cp)
     ids = ts1["entity_id"].to_list()
-    write_lists(mp, ids, m, "matched_entity_ids")
-    write_lists(cp, ids, c, "candidate_entity_ids")
+    pl.concat([pairs.select("s1_idx", "pool_idx", "prob").with_columns(decided=pl.lit(True)), cand.join(pairs, on=["s1_idx", "pool_idx"], how="anti").select("s1_idx", "pool_idx", "prob").with_columns(decided=pl.lit(False))]).sort("s1_idx", "pool_idx").write_parquet(mp.with_suffix(".probs.parquet"))
     src = {p.name: sha256(p) for p in sorted((ROOT / "src").glob("*.py"))} | {"train.py": sha256(ROOT / "attempts" / a.attempt_id / "train.py")}
     man = dict(attempt=a.attempt_id, tag=a.tag, train_frac=frac, n_entities=len(keep), sample_sha256=hashlib.sha256(np.sort(keep).tobytes()).hexdigest(), n_train_pairs=len(yv), n_pos=int(yv.sum()),
-               features=cols, params=get("PARAMS"), rounds=get("ROUNDS"), floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"), from_probs=a.from_probs, custom_fit=hasattr(mod, "fit"), git_commit=git_commit(), src_sha256=src,
+               features=cols, params=None if a.from_probs else get("PARAMS"), rounds=None if a.from_probs else get("ROUNDS"), floor=get("FLOOR"), empty_ratio=get("EMPTY_RATIO"), from_probs=a.from_probs, custom_fit=hasattr(mod, "fit"), git_commit=git_commit(), src_sha256=src,
                versions=dict(python=sys.version.split()[0], polars=pl.__version__, numpy=np.__version__, lightgbm=lgb.__version__),
                matching_sha256=sha256(mp), candidates_sha256=sha256(cp), n_matched_pairs=len(pred), n_decided_pairs=len(pairs), n_candidate_pairs=len(cand), runtime_s=round(time.time() - t0))
     mp.with_suffix(".json").write_text(json.dumps(man, indent=1))
