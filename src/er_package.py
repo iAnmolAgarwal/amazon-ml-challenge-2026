@@ -27,7 +27,8 @@ import zipfile
 from pathlib import Path
 
 import er_model as M
-from common import ROOT, load_attempt, load_config, read_json, sha256
+from common import ROOT, load_attempt, load_config, sha256
+from harness_util import read_json
 from er import raw_dir, validator_path
 
 REQUIREMENTS = """# main pipeline (CPU), Python 3.12.14
@@ -66,7 +67,9 @@ Run every command from this folder (`code/business_entity_resolution/`).
   single flat LightGBM used as a meta-model input; `src/stack/`: the second model family (own environment and README).
 - `attempts/<id>/train.py`: the settings of each stage named in the command list (loaded by `src/common.py`).
 - `artifacts/stack/`: the second model family's outputs used by the submission (13 parquet files, about 455 MB), so the
-  main pipeline runs from this package alone. `src/stack/README.md` regenerates them.
+  second family does not have to be rerun (`src/stack/README.md` regenerates them). The main family's own GPU steps
+  still run on Kaggle (table below).
+- `run_pipeline.sh`: the command list below as a script, in phases split at the GPU steps.
 - `artifacts/final/final_probs.parquet`: the final probability of every candidate pair, for the quick check below.
 - `config.yaml` (data and cache folders, seed), `requirements.txt` (CPU), `requirements-gpu.txt` (GPU steps).
 - `run_manifest.json`: the record of the final step (git commit, SHA256 of every source file, of the attempt settings
@@ -134,8 +137,12 @@ in the file.
 ```
 python3.12 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 ```
+Keep `cache_dir: cache` in `config.yaml`: several steps use the relative path `cache/` (to use another disk, make
+`cache/` a symlink).
 
 ## Reproduce end to end
+`bash run_pipeline.sh 1`, then the GPU step it prints, `bash run_pipeline.sh 2`, and so on; the last phase copies both
+outputs to `../../output/` and runs the organisers' validator. The same commands, in order:
 ```
 python src/prepare_raw.py                         # TSV -> parquet (cache/raw)
 {pre}{evalline}
@@ -168,6 +175,9 @@ Expected 5-fold CV macro F0.5 (train S1 of US + India, harness folds, the same d
 | meta-model over both families | `er_meta.py 027p_meta` | 0.99177 |
 | empty-address correction (final) | `er_fix.py 030p_fix` | 0.99184 (US 0.99164, India 0.99213) |
 
+The meta-model is cross-fitted on the main family's stratified folds, while the second family's out-of-fold inputs use
+its own folds (crc32 of the S1 id): every input is out-of-fold, but not on the same folds, so the meta-model CV may be
+slightly optimistic.
 The oracle macro F0.5 of the final train candidate set (13.4M pairs, 6.06 per S1) is 0.99798
 (`attempts/{attempt}/results.json`). France has no labels, so it has no CV.
 
@@ -177,8 +187,10 @@ What has been rerun:
 - An independent rebuild from the raw data on a second machine reproduced the blocking exactly (98,021,508 train pairs,
   same dictionary, same per-S1 oracle), stage 1 (CV 0.97005 vs 0.97008) and stage 2 (0.97425 vs 0.97423); the small
   differences are floating-point variation between CPU types.
-- The meta-model, France blend and decision steps, rerun from the cached inputs in a clean copy of the code on another
-  machine, gave byte-identical probabilities and output files.
+- From this unpacked package (28 Sep), the last six steps (`ce_export.py ce2`, `er_meta.py 027p_meta`,
+  `er_fix.py 030p_fix`, `er_france.py 029f5_final`, `er_fix.py 030q_fix --no-cv`, `er_predict.py 029f6_final
+  --from-probs 030q_fix`) were rerun from the cached inputs of the earlier steps into an empty output folder: every
+  intermediate probability file and both output TSVs came out byte-identical (meta-model CV 0.99177 reproduced).
 - Not rerun after the fact: the GPU steps. They stop on a wall-clock budget in fp16, so a rerun reproduces the
   cross-encoder scores closely but not bit-identically. The second family's outputs are shipped; regenerating them
   has the limits listed in src/stack/README.md ("Known reproduction gaps").
@@ -207,6 +219,46 @@ for split in ("train", "test"):
         pl.scan_csv(raw_dir(cfg) / split / f"{f}.tsv", separator="\\t", quote_char=None, infer_schema_length=0).sink_parquet(out / f"{f}.parquet", compression="zstd")
         print(f)
 '''
+
+def runner(attempt, pre, predict):
+    """run_pipeline.sh: the README command list as bash phases, split at the manual GPU (Kaggle) steps."""
+    phases, gpu, cur, notes = [], [], ["python src/prepare_raw.py"], []
+    for c in pre:
+        if c.lstrip().startswith("#"):
+            notes.append(c.lstrip()[1:].strip())
+        else:
+            if notes:
+                phases.append((cur, notes))
+                cur, notes = [], []
+            cur.append(c)
+    last = f"ls submissions/archive | grep -E '^[0-9]+_{attempt}\\.tsv$' | sort -n | tail -1"
+    cur += [predict.split("#")[0].strip(),
+            f'N=$({last})',
+            "mkdir -p ../../output && cp \"submissions/archive/$N\" ../../output/matching_results.tsv && cp \"submissions/archive/${N%.tsv}.candidates.tsv\" ../../output/candidate_pairs.tsv",
+            "V=$(find -L data -name validate_submission.py | head -1); T=$(dirname \"$(find -L data -name test_source1.tsv | head -1)\")",
+            "if [ -n \"$V\" ]; then python \"$V\" --matching ../../output/matching_results.tsv --candidate ../../output/candidate_pairs.tsv --test-dir \"$T\" --check-ids; fi"]
+    phases.append((cur, []))
+    out = ["#!/usr/bin/env bash",
+           "# The command list of README.md as a script, in phases split at the manual GPU steps (Kaggle notebooks).",
+           f"# usage: bash run_pipeline.sh <phase 1-{len(phases)}>; after each phase except the last, do the GPU step it prints.",
+           "# Run from code/business_entity_resolution/ with the organisers' dataset under data/; python = the main environment.",
+           "set -euo pipefail", 'cd "$(dirname "$0")"', ""]
+    for i, (cmds, gnotes) in enumerate(phases, 1):
+        out.append(f"phase_{i}() {{")
+        out += [f"  {c}" for c in cmds]
+        if gnotes:
+            out.append("  cat <<'GPU'")
+            out.append(f"Phase {i} done. Next, the GPU step (Kaggle, see README), then: bash run_pipeline.sh {i + 1}")
+            out += [f"- {g}" for g in gnotes]
+            out.append("GPU")
+        else:
+            out.append('  echo "done: ../../output/matching_results.tsv and ../../output/candidate_pairs.tsv"')
+        out += ["}", ""]
+    out.append('case "${1:-}" in')
+    out += [f"  {i}) phase_{i} ;;" for i in range(1, len(phases) + 1)]
+    out += [f'  *) echo "usage: bash run_pipeline.sh <phase 1-{len(phases)}>"; exit 1 ;;', "esac", ""]
+    return "\n".join(out)
+
 
 DOC = ROOT / "docs" / "Documentation_template.md"
 PLACEHOLDERS = ("{CV_", "[final]", "[update", "[Your Team Name]", "[List all team members]", "[Date]", "[e.g.,", "[total]", "[]", "[brief description]", "[your best validation score]", "[Brief description", "[Blocking + Classifier", "*Provide a brief", "*Describe how", "*Key insights", "*Outline your", "*Summarize your", "*Include any", "*Your complete")
@@ -290,14 +342,14 @@ def main():
         evalline = getattr(mod, "EVAL", f"python src/er_eval.py {attempt}                   # optional: 5-fold CV, macro F0.5")
         predictline = getattr(mod, "PREDICT", f"python src/er_predict.py {attempt} --train-frac {frac}  # train on train, write submissions/NN_{attempt}.tsv (+ .candidates.tsv)")
         zf.writestr(base + "README.md", README.format(attempt=attempt, pre=pre, evalline=evalline, predictline=predictline, predictline_short=predictline.split("#")[0].strip()))
+        zf.writestr(base + "run_pipeline.sh", runner(attempt, getattr(mod, "PRE_STEPS", []), predictline))
         zf.writestr(base + "requirements.txt", REQUIREMENTS)
         zf.writestr(base + "requirements-gpu.txt", REQUIREMENTS_GPU)
         if a.final:
             zf.write(mt, "output/matching_results.tsv")
             zf.write(ct, "output/candidate_pairs.tsv")
             zf.write(DOC, "Documentation_template.md")
-            man_z = dict(man, src_sha256={k: v for k, v in man["src_sha256"].items() if k in SRC_FILES or k == "train.py"},
-                         src_note="SHA256 of the shipped src/ modules and the attempt's train.py at run time; research modules of the source tree are not shipped")
+            man_z = dict(man, src_sha256={k: v for k, v in man["src_sha256"].items() if k in SRC_FILES or k == "train.py"})
             zf.writestr(base + "run_manifest.json", json.dumps(man_z, indent=1))
             probs = mt.with_suffix(".probs.parquet")
             zf.write(probs, base + "artifacts/final/final_probs.parquet", compress_type=zipfile.ZIP_STORED)

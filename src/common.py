@@ -1,6 +1,5 @@
 import hashlib
 import importlib.util
-import json
 import os
 import subprocess
 import sys
@@ -43,8 +42,3 @@ def sha256(path):
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
-
-
-def read_json(p, default=None):
-    p = Path(p)
-    return json.loads(p.read_text()) if p.exists() else default

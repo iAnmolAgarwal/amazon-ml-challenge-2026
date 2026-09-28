@@ -2,7 +2,7 @@
 
 1. extra_heldout.parquet: for each LOCO direction, the held-out country's pairs in the blend band (logit average of
    the spec and no-spec LOCO models, 0.02 < p < 0.98, cascade-kept: p > 0.02 and top 10 per S1) that are NOT in
-   train_band.parquet (those already get held-out scores). With them, the LOCO test (research script loco_transfer.py, not shipped) needs no median fill.
+   train_band.parquet (those already get held-out scores). With them, the leave-one-country-out test needs no median fill.
 2. france_band.parquet: the whole France blend band on test (spec + no-spec test p2, 0.02 < p < 0.98), as in
    stack_ce.py --unseen_blend.
 Columns as export_band.py (a_id, r_id, country, split, [fold, y], p2, a_name, a_addr, r_name, r_addr).

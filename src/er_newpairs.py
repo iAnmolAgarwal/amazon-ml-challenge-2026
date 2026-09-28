@@ -122,7 +122,6 @@ def score(cache, cfg, mod, attempt, split, blocks=12):
         del X
         print(f"  S1 {lo:,}-{hi:,}: {len(k):,} new pairs, {time.time() - t:.0f}s", flush=True)
     new = pl.concat(kept)
-    k = new
     old_name = mod.OLD if split == "train" else f"test_{mod.OLD}"
     old = pl.read_parquet(cache / "oof" / f"{old_name}.parquet", columns=KEYS + ["prob"])
     assert new.join(old, on=KEYS, how="semi").is_empty(), "new pairs overlap the existing candidates"

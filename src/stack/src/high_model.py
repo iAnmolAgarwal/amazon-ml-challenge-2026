@@ -7,7 +7,7 @@ within the source (entity-fold OOF + Platt scaling), and replaces the probabilit
 blend p >= 0.98. Everything else (band stack, one owner, rule T 2.0 / min_p 0.6) is unchanged.
 Features: logit of the blend p, direct pair features of the candidate table (no blocking ranks), decoy features
 (decoy_feats.py tables of the pair's own country and split).
-Baseline = cached final probabilities of the current France configuration (loco_transfer.py, a research script not shipped, DECOY=1, SAVE_Q=dec_extra,
+Baseline = cached final probabilities of the current France configuration (the leave-one-country-out test with DECOY=1, SAVE_Q=dec_extra,
 SAVE_VAR=extra). Aggregates only -> experiments/high_model.json.
 
   python src/high_model.py

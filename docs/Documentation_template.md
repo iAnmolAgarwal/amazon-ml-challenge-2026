@@ -7,7 +7,14 @@
 ---
 
 ## 1. Executive Summary
-We model the generator behind the data: true matches are noisy copies of an S1 record, and unmatched pool records are near-copy decoys made by a few operators (a house number shifted by one of ten steps, one inserted marker word, a swapped legal form), which the test set contains at about 1.9x the train rate. Candidates come from TF-IDF retrieval and exact keys (train oracle F0.5 0.998); LightGBM models on pair-local features, including label-free decoy-marker scores that also work for unlabelled France, score each pair, a cross-fitted meta-model combines them with fine-tuned e5 cross-encoders and a second LightGBM family, and an expected-F0.5 rule with one owner per pool record picks each answer. US and India changes were accepted only on a paired 5-fold CV test plus a label-free test-shift guard (CV 0.99184); France rules were set by leave-one-country-out tests and label-free counts (public leaderboard 0.990203).
+We treated the data as the output of a generator: true matches are noisy copies of a Source-1 (S1) record, and unmatched pool records are decoys made by a few fixed edits (house number shifted by one of ten steps, one inserted word, a swapped legal form), which the test set contains at about 1.9x the train rate (measured without labels). The pipeline is TF-IDF and exact-key blocking, LightGBM pair models with label-free decoy-marker features, fine-tuned multilingual-e5 cross-encoders, a meta-model over two independently built model families, and an expected-F0.5 decision that gives each pool record at most one owner. Every US/India change had to beat its parent on paired 5-fold CV and pass a label-free test-shift check; France, which has no labels, was set by leave-one-country-out tests and label-free counts.
+
+| Key number | Value |
+|---|---|
+| 5-fold CV macro F0.5, US + India (fold SD) | 0.99184 (0.00003) |
+| Public leaderboard | 0.990203 |
+| Recall ceiling: oracle F0.5 of the final train candidates | 0.9980 |
+| Test candidate pairs | 11.84M (6.83 per S1) |
 
 ---
 
@@ -22,7 +29,24 @@ We model the generator behind the data: true matches are noisy copies of an S1 r
 
 ### 2.2 Solution Strategy
 **Approach Type:** Blocking + Classifier (multi-stage LightGBM, fine-tuned cross-encoders, and a meta-model over two model families)  
-**Core Innovation:** label-free decoy-marker scores and generator-operator features that model how the synthetic noise and decoys were produced, re-centred per country so the same features work on the unlabelled country.
+**Core Innovation:** modelling the data generator: (1) decoy-marker scores learned without labels, using a decoy house shift as a noisy label, and re-centred per country so they also serve France; (2) generator-operator features that encode which edits link a pair (US/India correction); (3) label-free checks of every change against the test's higher decoy density.
+
+**Pipeline**
+```
+S1 + pool records, per country
+ -> normalize (native-script words -> Latin, dictionary learned from train pairs)
+ -> blocking: word TF-IDF top 40 + exact keys + char 3-gram route + extra name keys + reverse retrieval
+ -> stage 1 LightGBM -> stage 2 LightGBM (+ competition features); keep p >= 0.001
+ -> band model (all features) -> lexical correction -> generator-operator correction (US, India)
+ -> e5 cross-encoder stack on the uncertain band
+ ==> candidate_pairs.tsv: our final p >= 0.001 (France: stage-2 band) + second-family cascade; 11.84M pairs, 6.83 per S1
+ -> meta-model over both model families (US, India) | France blend (4.2)
+    France: band model -> lexical correction -> + added-route pairs -> blend with the second family and the
+            cross-encoder logit -> rename rule, word veto -> empty-address correction
+ -> empty-address correction -> expected-F0.5 decision (4.3)
+```
+
+**Glossary.** *Band*: pairs whose stage-2 probability is ≥ 0.001 (the cross-encoder band is 0.003-0.997). *Route*: a candidate source (character retrieval, extra keys, reverse retrieval). *Name twin*: another S1 of the same country with the same normalized name. *LOCO*: fit on US and score India as if unlabelled, and the reverse. *Lift*: a country's marker scores re-centred by its own decoy base rate. *Generator operator*: one edit the data generator applies to make a noisy match or a decoy (house shift, truncated digits, word insertion or drop, legal-form swap, reorder, acronym); generator-operator features encode which operators link a pair. *Second family*: an independently built LightGBM and cross-encoder pipeline (`src/stack`) with its own blocking and folds. *Fair sample*: a fixed, label-free 10% of train S1 that gets the same extra candidate sources as test.
 
 **Validation protocol**
 - 5-fold CV over the 2.21M train S1, stratified by country × match count. Every stacked input is out-of-fold. Final fold SD: 0.00003.
@@ -30,11 +54,9 @@ We model the generator behind the data: true matches are noisy copies of an S1 r
 - Decoy-density stress test: features that could react to decoy density (graph features, the per-country re-centring of the marker scores) were re-scored with train decoys cloned to about 2x.
 - Label-free test guard before every upload: per country, compare test and train on emitted pairs per S1, empty-answer rate and the share of emitted pairs with conflicting house numbers. A change that emits far more extra pairs on test than on train is rejected even if CV improves.
 - Fair sample (glossary): changes that add candidate sources are also checked paired on it.
-- Test data without labels: test records are used, label-free, in three places: the France decoy-marker table, the France word lists (`src/er_frwords.py`) and the test guard's summary counts. No test label or leaderboard score enters any feature.
-- France: leave-one-country-out (LOCO) tests plus label-free counts on France's own test candidates (4.3).
+- Test data without labels: like any per-split statistic, test records feed label-free quantities computed on the split being scored (TF-IDF weights and name frequencies, competition features over the candidate set, the France decoy-marker table and word lists) and the test guard's summary counts. No test label or leaderboard score enters any feature.
+- France: leave-one-country-out (LOCO) tests plus label-free counts on France's own test candidates (4.2).
 - Public leaderboard: recorded after each upload. US/India changes were chosen by CV alone. France rules were fixed by LOCO and label-free counts before upload, but the leaderboard was the only check of the France result: one France change (the empty-address correction, which passed LOCO in one direction only) was kept because the leaderboard rose.
-
-**Glossary.** *Band*: pairs whose stage-2 probability is ≥ 0.001 (the cross-encoder band is 0.003-0.997). *Route*: a candidate source (character retrieval, extra keys, reverse retrieval). *Name twin*: another S1 of the same country with the same normalized name. *LOCO*: fit on US and score India as if unlabelled, and the reverse. *Lift*: a country's marker scores re-centred by its own decoy base rate. *Generator operator*: one edit the data generator applies to make a noisy match or a decoy (house shift, truncated digits, word insertion or drop, legal-form swap, reorder, acronym); generator-operator features encode which operators link a pair. *Chain probability*: our family's probability after its last correction, before the meta-model. *Second family*: an independently built LightGBM and cross-encoder pipeline (`src/stack`) with its own blocking and folds. *Fair sample*: a fixed, label-free 10% of train S1 that gets the same extra candidate sources as test.
 
 ---
 
@@ -48,25 +70,13 @@ We model the generator behind the data: true matches are noisy copies of an S1 r
 | Other routes (character retrieval, extra keys, reverse retrieval) | proposed pairs cut by the route classifier at p > 0.001 | same |
 | Final candidate set (`candidate_pairs.tsv`) | 13.37M pairs (6.06 per S1), oracle F0.5 0.9980 | 11.84M pairs (6.83 per S1: US 5.63, India 6.06, France 12.31) |
 
-  `candidate_pairs.tsv` is every pair the final models score: our pairs that pass the stage-2 filter (p ≥ 0.001) or were added after it (for US and India also chain probability ≥ 0.001), plus the second family's cascade (p > 0.02, top 10 per S1). 58,364 second-family pairs that our stage 2 scored below 0.001 are scored but never matched (README, "Candidate file"). France has twice the pairs per S1 because its pairs are not cut before the France blend.
+  `candidate_pairs.tsv` is every pair the final models score: our pairs that pass the stage-2 filter (p ≥ 0.001) or were added after it (for US and India also our family's final probability ≥ 0.001), plus the second family's cascade (p > 0.02, top 10 per S1). 58,364 second-family pairs that our stage 2 scored below 0.001 are scored but never matched (README, "Candidate file"). France has twice the pairs per S1 because its pairs are not cut at probability 0.001 before the France blend.
 - **How we ensured true matches were not lost:** oversized key blocks are skipped rather than truncated by row order. The character route, the extra keys and reverse retrieval recover matches that word retrieval misses; their added pairs are scored by the route classifier, and the test guard was run on every upload that added a source. With them, the oracle of the final train set is 0.9980, so unretrieved pairs cost at most 0.0020 F0.5. Further retrieval has little left to find: a wider reverse retrieval finds only 4.9% of the remaining misses.
 
 ---
 
 ## 4. Matching Model
 
-**4.1 Pipeline**
-```
-S1 + pool records, per country
- -> normalize (native-script words -> Latin, dictionary learned from train pairs)
- -> blocking: word TF-IDF top 40 + exact keys + char 3-gram route + extra name keys + reverse retrieval
- -> stage 1 LightGBM -> stage 2 LightGBM (+ competition features); keep p >= 0.001
- -> band model (all features) -> lexical correction -> generator-operator correction
- -> e5 cross-encoder stack on the uncertain band
- ==> candidate_pairs.tsv: chain p >= 0.001 (France: stage-2 band) + second-family cascade; 11.84M pairs, 6.83 per S1
- -> meta-model over both model families (US, India) | France blend (4.3)
- -> empty-address correction -> expected-F0.5 decision (4.4)
-```
 
 **Features used:**
 - Name features: fuzzy ratio / token-set / token-sort / partial / Jaro-Winkler on several name views (core, website-free, space-free, sorted, initials, alternate name); IDF-weighted shared and one-sided token mass; character 3-gram cosine; name-frequency counts; legal-form relations; **decoy-marker scores** for added, dropped and swapped words, (n_d + 1)/(n_d + n_0 + 10), where n_d counts candidate pairs whose pool name adds (drops, swaps) the word and whose house number is shifted by a decoy step, and n_0 counts the same with equal house numbers (no labels, so France gets its own table from its test candidates); name edit operations (typo position, confusable characters, acronyms, prefix drops, reorder / join / split, fillers, alias and web markers).
@@ -75,7 +85,7 @@ S1 + pool records, per country
 
 **Model type:** LightGBM (pair models, corrections, meta-model) with fine-tuned multilingual-e5 cross-encoders (small, base).
 
-**4.2 Models** (LightGBM unless stated; every train input is out-of-fold)
+**4.1 Models** (LightGBM unless stated; every train input is out-of-fold)
 1. *Stages 1-2 (blocking filter)* (127 leaves, 600 rounds). Stage 2 adds competition features from stage-1 out-of-fold probabilities.
 2. *Band model:* one model on stage-2 pairs with p ≥ 0.001 and every feature family.
 3. *Route classifier:* scores pairs added by the character route, extra keys and reverse retrieval.
@@ -86,21 +96,21 @@ S1 + pool records, per country
 
 Pretrained: intfloat/multilingual-e5-small (MIT, 118M) and e5-base (MIT, 278M) at pinned revisions, fine-tuned on training pairs only (12 checkpoints); LightGBM 4.7.0 (MIT); no external data; all libraries permissive except Unidecode (GPL-2.0, second family only).
 
-**4.3 France (no labels).** Nothing is trained on France labels. Each rule was fixed by LOCO or by label-free counts on France's own test candidates.
+**4.2 France (no labels).** Nothing is trained on France labels. Each rule was fixed by LOCO or by label-free counts on France's own test candidates.
 - *Scale:* decoy-marker scores are re-centred per country as logit(score) − log(Σn_d / Σn_0), so France's table, built from its own candidates, lands on the train scale.
 - *Blend:* p = σ(0.5·logit p_ours + 0.5·logit p_second) on the union of both families' France pairs. In a LOCO grid, weights 0.5-0.6 were the only ones that did not lose in-country and gained in both LOCO directions (+0.0058 / +0.0024 for the full blend); union, temperature 2 and a 2x logit-scale error each flipped sign with the direction. The cross-encoder logit enters the blend with weight 0.1 on band pairs (LOCO +0.00053 / +0.00052).
 - *Decoy words:* `src/er_frwords.py` derives the lists without labels from France's test candidates: pool names that add exactly one word to the S1 name on the same street, split by equal house number versus a decoy shift. *participations, holding, distribution, international* are added 17.6-17.7k times with a decoy shift and only 51-60 times at an equal house (shift share 0.997); pairs whose pool name adds one of them get p = 0. *groupe, developpement, france* have the same shifted counts but about 1.2k equal-house insertions (share 0.93), so they are fillers as well as markers and are not vetoed; the second family's zeros on them are treated as missing. On US "partners", the same dual-use case with labels, a veto would remove pairs that are 99.8% true (−0.0024 US).
 - *Renamed business at the S1's own unique address* (no shared name word, same house number, a shared street word, the only S1 of its country at that address): max(blend, p_second) (LOCO +0.00033 / +0.00062).
 - *Empty-address correction* fitted on US + India without the country flag and applied to France (transfer: fitted on US, applied to India +0.00006, 5/5 folds; fitted on India, applied to US +0.00002, not significant).
 
-**4.4 Threshold selection method:** expected-F0.5 decision per S1. Each pool record goes to its highest-probability S1. Per S1, the prefix k maximizing 5·Σp(top k) / (Σp + 4k) is kept unless the probability of no match, Π(1 − p), is larger. Then pairs with p ≤ 0.6 are dropped. The prefix score is a plug-in approximation of expected F0.5 (a ratio of expectations with pairs treated as independent), and the one-owner step is greedy per pool record, so the rule is near-optimal rather than exact. The 0.6 floor is an empirical correction on top, chosen by paired CV: on the same stage-1 probabilities it raises CV from 0.97008 to 0.97083.
+**4.3 Threshold selection method:** expected-F0.5 decision per S1. Each pool record goes to its highest-probability S1. Per S1, the prefix k maximizing 5·Σp(top k) / (Σp + 4k) is kept unless the probability of no match, Π(1 − p), is larger. Then pairs with p ≤ 0.6 are dropped. The prefix score is a plug-in approximation of expected F0.5 (a ratio of expectations with pairs treated as independent), and the one-owner step is greedy per pool record, so the rule is near-optimal rather than exact. The 0.6 floor is an empirical correction on top, chosen by paired CV: on the same stage-1 probabilities it raises CV from 0.97008 to 0.97083.
 
 ---
 
 ## 5. Results & Error Analysis
 
 - **F_0.5 Score (macro):** 5-fold CV on all 2.2M train S1: **0.99184** (US 0.99164, India 0.99213; fold SD 0.00003). France has no labels. If US and India held their CV on test, the public score of 0.990203 would imply France ≈ 0.981; the higher test decoy density probably lowers US and India too, so 0.981 is a lower bound for France (the public split's country mix may also differ).
-- **Common false positives (wrong merges):** decoys that keep the name and address but shift the house number by a typical step or insert a generic business word; legal-form swaps; unit-number changes in the same building. Out-of-fold false-positive pairs fell from 12,987 (band model) to 5,564 (final), and pair precision is 0.9993.
+- **Common false positives (wrong merges):** out-of-fold false-positive pairs fell from 12,987 (band model) to 5,564 (final; pair precision 0.9993). The largest group (43%) is ownership errors: the pool record is a true match of another S1, usually a name twin, and the one-owner step gives it to the wrong S1. Surviving decoys mostly carry an inserted business word (15%) or a decoy house shift (5%); legal-form and unit conflicts are 1%. The other 36% are unmatched records with none of these edits (not characterised further).
 - **Common false negatives (missed matches):** of the CV loss (1 − 0.99184 = 0.0082), at most 0.0020 comes from true pairs never retrieved (oracle 0.9980). The rest are true candidates that score below the floor (missed pairs fell from 302,721 to 186,753; pair recall 0.976). On the last analysed parent (CV 0.99051), two thirds of the in-candidate headroom (+0.0042 of +0.0064 oracle F0.5) was pool records with an empty or "None" address that a name twin also claims: with no address the twins are interchangeable. S1 records never have an empty address. S1 with a single true match score lowest (0.973, against 0.990-0.994 for two or more), because one miss costs the whole entity; S1 with no true match (5.6% of train) score 0.997, so the empty answer rarely fires wrongly.
 
 | Error type (final out-of-fold decisions, US + India) | Pairs | Share |
@@ -121,14 +131,14 @@ Examples from train. False positive (p = 0.9993): S1 "Schmidt's Coastal Retail, 
 ## 6. Conclusion
 Modelling the generator drove the largest single steps: pair features for name specificity, house-number relations and legal form (+0.009 CV), decoy-marker scores (+0.002 CV but +0.007 public LB) and generator-operator codes (+0.001). The second model family added +0.0027 CV through the meta-model. One LightGBM on all 205 features matches the whole correction chain (0.98779 both, Table B.2), so the gains came from the features, not the stage structure. A production version would keep one LightGBM on all features plus the meta-model, and drop the stage chain and the flat-model input (+0.00002 CV for about 32 GB and 2 hours). The most important lesson was to validate every idea against the test's higher decoy density with a label-free guard: features that exploit an S1's other candidates look excellent in CV and fail on test.
 
-**Limitations.** (1) The pipeline has about 20 steps in two environments; two command lines of the second family were rebuilt from its run records, and the GPU steps are not bit-identical on rerun, so the second family's outputs are shipped with the code. (2) France rests on LOCO proxies and label-free counts; its true score is unknown. (3) Empty-address pool records shared by name twins cost about 0.004 F0.5 (measured on the 0.99051 parent); the empty-address correction recovers only a small part (0.99177 → 0.99184 CV), because with no address the twins carry no separating evidence. (4) Train candidates lack the character-route pairs that test has; the fair-sample checks cover this. (5) The France path is selected by the country name; a new unlabelled country would need the same switch. (6) The decoy-clone stress test, the test guard, the LOCO grids of our family and the ablations were run with analysis scripts that are not in the package; the package reproduces the pipeline, not these checks.
+**Limitations.** (1) The pipeline has about 20 steps in two environments; two command lines of the second family were rebuilt from its run records, and the GPU steps are not bit-identical on rerun, so the second family's outputs are shipped with the code. (2) France rests on LOCO proxies and label-free counts; its true score is unknown. (3) Empty-address pool records shared by name twins cost about 0.004 F0.5 (measured on the 0.99051 parent); the empty-address correction recovers only a small part (0.99177 → 0.99184 CV), because with no address the twins carry no separating evidence. (4) Train candidates lack the character-route pairs that test has; the fair-sample checks cover this. (5) Country is treated as an open set as the organisers ask: nothing is restricted to {US, India}, every country value is blocked and scored, and every test S1 gets a row. The unlabelled path of 4.2 is selected by the country value `france` (`er_lift`, `er_meta`, `er_comb`, `er_fix`, `er_france`, `er_frwords`); another unlabelled country would need its value added there. The French address rules in `er_norm` are language knowledge, not labels. (6) The decoy-clone stress test, the test guard, the LOCO grids of our family and the ablations were run with analysis scripts that are not in the package; the package reproduces the pipeline, not these checks.
 
 ---
 
 ## Appendix
 
 ### A. Code Artefacts
-`code/business_entity_resolution/` contains `src/` (all pipeline modules; `src/ce/` the cross-encoder scripts; `src/single/` the flat LightGBM; `src/stack/` the second model family with its own README and requirements), `attempts/` (the settings of every stage used, one folder per stage), `artifacts/stack/` (the second family's outputs used by the submission), `config.yaml`, `README.md`, `requirements.txt`, `requirements-gpu.txt`, `run_manifest.json` and `SHA256SUMS`. The README lists every command in order, the expected CV after each stage, what was rerun to verify it, and each GPU run. Compute: about 30-55 CPU hours on 12-vCPU / 96 GB Linux machines, about 15-20 GPU hours on Kaggle 2x T4, and about 120 GB of disk for intermediate files; entry points: the README command list rebuilds both output files from the raw TSVs; its last command, `python src/er_predict.py 029f6_final --from-probs 030q_fix`, writes them in 19 s once the cached probabilities exist.
+`code/business_entity_resolution/` holds `src/` (pipeline; `src/ce/` cross-encoders, `src/single/` the flat LightGBM, `src/stack/` the second family with its own README), `attempts/` (settings of every stage), `artifacts/` (the second family's outputs and the final probabilities), `run_pipeline.sh`, `config.yaml`, `README.md`, requirements, `run_manifest.json` and `SHA256SUMS`. The README lists every command (also as `run_pipeline.sh`, three phases split at the GPU steps), the expected CV after each stage and each GPU run. Verification: `python src/verify_final.py` rebuilds both output files byte-identical from the shipped final probabilities in under a minute, and the last six steps, rerun from the package's own code on the cached earlier inputs, reproduced every intermediate file and both outputs byte-identical. Compute: about 30-55 CPU hours on 12-vCPU / 96 GB Linux machines, about 15-20 GPU hours on Kaggle 2x T4, and about 120 GB of disk for intermediate files; entry points: the README command list rebuilds both output files from the raw TSVs; its last command, `python src/er_predict.py 029f6_final --from-probs 030q_fix`, writes them in under a minute once the cached probabilities exist.
 
 ### B. Additional Results
 **B.1 Progression** (5-fold CV macro F0.5 on US + India; public leaderboard where uploaded)

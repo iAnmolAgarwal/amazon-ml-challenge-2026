@@ -40,7 +40,7 @@ def main():
         times.append(time.time() - t0)
         extra = ""
         if isinstance(out, dict) and "candidates" in out:
-            from er import candidate_stats
+            from harness_util import candidate_stats
 
             cs = candidate_stats(yt, out["candidates"])
             cand.append(cs)

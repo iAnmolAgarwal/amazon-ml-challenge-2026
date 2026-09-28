@@ -102,7 +102,7 @@ The shipped files in `artifacts/stack/` are the ones the submission used. Regene
    - `src/export_scores.py` rebuilds it from the documented format, the `SAVE_IC` cache written by `stack_ce.py eval`, and the `final_p_*.npz` written by `stack_ce.py test`.
    - Its row filter matches the delivered files. Every row with `q < 0.001` has `p2 > 0.02` and a within-S1 `p2` rank of at most 10, and `q == p2` on 100 % of out-of-band rows. It has not been run end to end.
 2. **Exact command lines of steps 7-8.**
-   - These were not logged verbatim. The flags are rebuilt from the recorded configuration: `--decoy --decoy2 --ops --pairf`, 127 leaves, min_data 100, 800 rounds, the cache tag `e1` and the build directory `output_v08`.
+   - The flags are those of the recorded build configuration: `--decoy --decoy2 --ops --pairf`, 127 leaves, min_data 100, 800 rounds, the cache tag `e1` and the build directory `output_v08`; the full command lines were not saved verbatim.
    - At default settings, the current code behaves the same as the code of that build. The later additions only activate through the `MONO` and `UNSEEN_ADDR_SHIFT` environment variables, or write an extra `all_p_*.npy`.
 3. **Kaggle kernels.**
    - The kernels and the dataset upload were set up by hand in the Kaggle UI. `kaggle/run.py` encodes their settings (the table above, from the run notes and the script defaults).

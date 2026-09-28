@@ -53,7 +53,7 @@ XF = ["xf_rname_aaddr", "xf_aname_raddr", "xf_rextra_in_aaddr", "xf_rextra_n", "
 # stage-3 modifiers set from the CLI: decoy = add decoy_feats.py features; nosup = drop the supporting-record
 # (coherence) features, which can learn "shared deviation means true" from clustered decoys on test
 MODS = {"decoy": False, "nosup": False, "lex": False, "decoy2": False, "ops": False, "pairf": False, "cnt": False}
-CNT = ["cnt_nconf", "cnt_need", "cnt_mr", "cnt_share"]   # count-prior competition features (feat_cnt.py, a research script not shipped; --cnt, off in the submission)
+CNT = ["cnt_nconf", "cnt_need", "cnt_mr", "cnt_share"]   # count-prior competition features (--cnt; research option, off in the submission)
 OPS = ["op_acro", "op_add_fill", "op_add_other", "op_drop_fill", "op_drop_other", "op_filler_only", "op_ed1",
        "op_unmatched_after_ed1", "op_num_trunc", "op_num_new"]    # generator-operator features (feat_ops.py; --ops)
 LEX = [f"lx_{c}_{s}" for c in ("nm_add", "nm_drop", "ad_add", "ad_drop", "legal")
@@ -449,7 +449,7 @@ def test_apply(tag, out_name, cand_t=None, cand_k=None, unseen_p2=None, rule_uns
         if unseen_blend is not None and c not in trained:
             # France: logit average of the specificity and no-spec stage-2 models, band and cascade filter on
             # the blend, FEATS stack with the cross-country CE; band pairs without a CE score (outside the spec band
-            # that was scored) get the median score, exactly as in the LOCO test (loco_transfer.py blend, a research script not shipped)
+            # that was scored) get the median score, exactly as in the LOCO test (as in the leave-one-country-out test)
             spec_dir, ns_dir = unseen_blend.split(",") if "," in unseen_blend else ("cache/predict_work", unseen_blend)
             ps = np.load(os.path.join(ROOT, spec_dir, f"p2_{safe(c)}.npy")).astype(np.float64)   # "spec dir,no-spec dir"
             pn = np.load(os.path.join(ROOT, ns_dir, f"p2_{safe(c)}.npy")).astype(np.float64)
@@ -457,7 +457,7 @@ def test_apply(tag, out_name, cand_t=None, cand_k=None, unseen_p2=None, rule_uns
                 raise ValueError(f"{c}: blend p2 length mismatch")
             p = 1 / (1 + np.exp(-(logit(ps) + logit(pn)) / 2))
             p_filter = p.copy()
-            # band = cascade-kept pairs only, exactly as in the LOCO test (research script loco_transfer.py, not shipped) (CE ranks/margins over the same population)
+            # band = cascade-kept pairs only, exactly as in the leave-one-country-out test (CE ranks/margins over the same population)
             keep_u = keep_mask(a, p, rank_in_entity(a, p), cand_t, cand_k) if cand_t is not None else np.ones(len(a), bool)
             bpos = np.flatnonzero(keep_u & (p > 0.02) & ((p < 0.98) | unseen_high))   # high: also re-score p >= 0.98
             tb = pd.DataFrame({"a_id": t.a_id.values[bpos], "r_id": t.r_id.values[bpos], "p2": p[bpos]})
@@ -515,7 +515,7 @@ def test_apply(tag, out_name, cand_t=None, cand_k=None, unseen_p2=None, rule_uns
                 v = MV.veto_mask(t.a_id.values[kpos], t.r_id.values[kpos], Sd, Pd, mk)
                 p[kpos[v]] = 0.0
                 print(c, "marker veto words", sorted(mk), "vetoed kept pairs", int(v.sum()), flush=True)
-            if os.environ.get("UNSEEN_ADDR_SHIFT"):       # address-less pool pairs: logit + d (fr_addr_rule.py, a research script not shipped; off in the submission; LOCO +0.00018 / +0.00009 at 0.5)
+            if os.environ.get("UNSEEN_ADDR_SHIFT"):       # address-less pool pairs: logit + d (research option, off in the submission; LOCO +0.00018 / +0.00009 at 0.5)
                 d_ = float(os.environ["UNSEEN_ADDR_SHIFT"])
                 kpos = np.flatnonzero(keep_u)
                 emp = pq.read_table(path, columns=["r_addr_empty"]).column("r_addr_empty").to_numpy()[kpos].astype(bool)
@@ -543,7 +543,7 @@ def test_apply(tag, out_name, cand_t=None, cand_k=None, unseen_p2=None, rule_uns
         A_, R_, P_, RID_ = a[kept], r[kept], p[kept], t.r_id.values[kept]
         n_cr = 0
         cr_file = os.path.join(ROOT, "cache", "cr_test", f"{safe(c)}.parquet")
-        if cr_add is not None and os.path.exists(cr_file):  # character-retrieval pairs the blocker missed (cr_score.py, a research script not shipped; off in the submission)
+        if cr_add is not None and os.path.exists(cr_file):  # character-retrieval pairs the blocker missed (research option, off in the submission)
             nk = pd.read_parquet(cr_file, columns=["a_id", "r_id"])
             pn_ = np.load(cr_file.replace(".parquet", "_p.npy")).astype(np.float64)
             mk = pn_ > cr_add
@@ -603,10 +603,10 @@ if __name__ == "__main__":
     ap.add_argument("--rounds", type=int, default=400, help="stage-3 boosting rounds")
     ap.add_argument("--decoy", action="store_true", help="add decoy-aware features (decoy_feats.py)")
     ap.add_argument("--nosup", action="store_true", help="drop the supporting-record (coherence) features")
-    ap.add_argument("--lex", action="store_true", help="add lexical-correction features (lexical.py, a research script not shipped; off in the submission)")
+    ap.add_argument("--lex", action="store_true", help="add lexical-correction features (research option, off in the submission)")
     ap.add_argument("--ops", action="store_true", help="add generator-operator features (feat_ops.py), in-country stack")
     ap.add_argument("--pairf", action="store_true", help="add all stage-1/spec pair features (band_feats.py), in-country stack")
-    ap.add_argument("--cnt", action="store_true", help="add count-prior competition features (feat_cnt.py, a research script not shipped; off in the submission), in-country stack")
+    ap.add_argument("--cnt", action="store_true", help="add count-prior competition features (research option, off in the submission), in-country stack")
     ap.add_argument("--decoy2", action="store_true", help="add the extra house relations (signed shift, <=10, reorder, prefix)")
     a = ap.parse_args()
     MODS["decoy"], MODS["nosup"], MODS["lex"], MODS["decoy2"], MODS["ops"], MODS["pairf"], MODS["cnt"] = a.decoy, a.nosup, a.lex, a.decoy2, a.ops, a.pairf, a.cnt

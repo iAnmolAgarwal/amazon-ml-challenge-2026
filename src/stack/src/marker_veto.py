@@ -8,7 +8,7 @@ house is the S1 house shifted upward by a decoy shift {1,2,3,4,5,7,9,11,13,21} t
 Veto: final probability 0 for pairs whose pool name adds a marker word, then the usual one-owner + expected-F0.5 rule.
 
 LOCO: markers of the HELD country from its own (label-free) pairs, applied to the cached held-out probabilities of a
-France configuration (cache/loco_q/<tag>_<held>.npz). Aggregates only -> experiments/marker_veto_<tag>.json (research output folder, not shipped).
+France configuration (cache/loco_q/<tag>_<held>.npz). Aggregates only -> experiments/marker_veto_<tag>.json.
 
   python src/marker_veto.py dkd2e5bc_blend
 """

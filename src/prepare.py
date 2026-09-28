@@ -3,7 +3,8 @@ from pathlib import Path
 import polars as pl
 
 from common import load_config
-from er import load_split, raw_dir, read_tsv
+from er import raw_dir
+from harness_util import load_split, read_tsv
 
 
 def main():

@@ -5,7 +5,8 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from common import ROOT, read_json, sha256
+from common import ROOT, sha256
+from harness_util import read_json
 
 LOG = ROOT / "submissions" / "archive" / "log.csv"
 FIELDS = ["n", "timestamp_utc", "day_ist", "attempt_id", "file", "sha256", "code_zip_sha256", "cv_mean", "cv_std", "metric", "git_commit", "public_lb", "notes"]
