@@ -19,9 +19,8 @@ No external data is used. The only pretrained weights are `intfloat/multilingual
 - `kaggle/ce.py`: the in-country (`e5i`, `e5b`) and cross-country (`e5s`) cross-encoders.
 - `kaggle/ce_france.py`: the cross-country cross-encoder for the country without labels (`e5bc`).
 - `kaggle/run.py`: the kernel entry point that sets each run's settings.
-- `kaggle/requirements.txt`: pins for the GPU step.
+- GPU pins: `requirements-gpu.txt` at the package root (shared with src/ce/).
 - `configs/`: the stage-2 experiment configs used by the chain.
-- `utils/validate_submission.py`: the organisers' validator.
 
 ## Setup
 ```bash

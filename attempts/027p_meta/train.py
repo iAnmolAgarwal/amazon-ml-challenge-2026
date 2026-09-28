@@ -11,9 +11,3 @@ FEATS_ROUTE = {"feat5": "feat5_new"}
 PARAMS = dict(objective="binary", learning_rate=0.05, num_leaves=127, min_data_in_leaf=500, feature_fraction=0.9, bagging_fraction=0.8, bagging_freq=1, lambda_l2=10.0, seed=42, num_threads=12, verbose=-1, deterministic=True, force_col_wise=True)
 ROUNDS = 600
 DEPENDS = ["028f_ce", "024f_keys", "028k_ce", "028_ce", "024_keys", "023_comb", "018_lexical", "017_route", "016_stage2b", "006_stage2", "005n_indic_nocoh", "005f_floor"]
-PRE_STEPS = [
-    "# the command list of attempts/029f6_final up to the single-model side-car (cache/feat/{split}_r19a2), then:",
-    "# second model family outputs in cache/stack (shipped in artifacts/stack; code in src/stack): out-of-fold train and test pair probabilities and cross-encoder scores",
-    "python src/er_meta.py 027p_meta",
-]
-PREDICT = "python src/er_predict.py 027p_meta --from-probs 027p_meta"

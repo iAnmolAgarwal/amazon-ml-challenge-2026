@@ -50,7 +50,7 @@ POBOX = re.compile(r"\b(bp|cs|tsa|cedex)\s*\d+", re.I)
 
 
 UNIT = re.compile(r"\b(?:suite|ste|apt|apartment|unit|flat|floor|fl|room|rm|bldg|building|office|shop|"
-                  r"etage|étage|bat|bât|batiment|bâtiment|porte|bureau|lot|appt|app)\b" + "\s*[.#:]?\s*(\w{1,5})|#\s*(\d{1,5})", re.I)
+                  r"etage|étage|bat|bât|batiment|bâtiment|porte|bureau|lot|appt|app)\b" + r"\s*[.#:]?\s*(\w{1,5})|#\s*(\d{1,5})", re.I)
 
 
 def unit_of(raw):

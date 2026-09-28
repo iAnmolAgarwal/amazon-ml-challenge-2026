@@ -12,12 +12,3 @@ NEW_ROUNDS = 300
 NEW_FILTER = 0.001
 NEW_SAMPLE = 0.1
 DEPENDS = ["023_comb", "018_lexical", "017_route", "016_stage2b", "006_stage2", "005n_indic_nocoh", "005f_floor"]
-PRE_STEPS = [
-    "# all steps of 023_comb, then:",
-    "python src/er_keys.py --split test && python src/er_rtext.py --split test --parent 023_comb   # extra candidate sources",
-    "python src/er_newpairs.py union 024_keys --split test",
-    "python src/er_feat.py --split test --tag _k && python src/er_feat2.py --split test --tag _k && python src/er_feat5.py --split test --tag _k",
-    "python src/er_newpairs.py fit 024_keys          # same classifier as 017_route (no probability inputs)",
-    "python src/er_newpairs.py score 024_keys --split test",
-]
-PREDICT = "python src/er_predict.py 024_keys --from-probs 024_keys"

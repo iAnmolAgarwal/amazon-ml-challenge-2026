@@ -11,20 +11,10 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def shared_root():
-    if not (ROOT / ".git").exists():
-        return ROOT
-    try:
-        common = subprocess.check_output(["git", "rev-parse", "--git-common-dir"], cwd=ROOT, text=True, stderr=subprocess.DEVNULL).strip()
-        return (ROOT / common).resolve().parent
-    except Exception:
-        return ROOT
-
-
 def load_config(path=None):
     p = Path(path or os.environ.get("AML_CONFIG", ROOT / "config.yaml"))
     cfg = yaml.safe_load(p.read_text())
-    base = shared_root() if path is None else p.parent
+    base = ROOT if path is None else p.parent
     for k in ("data_dir", "cache_dir"):
         cfg[k] = str((base / cfg[k]).resolve()) if not Path(cfg[k]).is_absolute() else cfg[k]
     Path(cfg["cache_dir"]).mkdir(parents=True, exist_ok=True)

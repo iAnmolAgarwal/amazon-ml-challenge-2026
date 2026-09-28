@@ -1,7 +1,0 @@
-# GPU step (kaggle/ce.py); run on Kaggle's GPU image or locally with:
-torch==2.14.0
-transformers==5.17.0
-scikit-learn==1.9.1
-pandas==3.0.6
-pyarrow==25.0.1
-numpy==2.4.6

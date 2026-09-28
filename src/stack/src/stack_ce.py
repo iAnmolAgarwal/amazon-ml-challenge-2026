@@ -61,7 +61,7 @@ LEX = [f"lx_{c}_{s}" for c in ("nm_add", "nm_drop", "ad_add", "ad_drop", "legal"
 DECOY = ["h_both", "h_equal", "h_shift", "h_logdiff", "h_suffix", "lg_equal", "lg_differ", "lg_one_side",
          "nm_n_added", "nm_n_dropped", "dk_added", "dk_dropped", "dk_swap", "lg_nested", "u_equal", "u_conflict", "u_one_side"]
 DECOY2 = ["h_up_shift", "h_le10", "h_reorder", "h_prefix", "dk_add_rarity", "dk_drop_rarity", "dk_direction",
-          "num1_eq_fb", "num1_missing_fb"]                       # house agreement with the French fallback parser     # extra house relations (--decoy2, pending validation)
+          "num1_eq_fb", "num1_missing_fb"]                       # house agreement with the French fallback parser     # extra house relations (--decoy2)
 
 
 # monotone directions for the unseen-country stacker (MONO=1, off by default): only features whose sign is

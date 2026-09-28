@@ -18,6 +18,7 @@ usage: python src/er_package.py submissions/NN_<attempt_id>.tsv [--validate-only
 Never includes data, caches other than ARTIFACTS, credentials or git metadata.
 """
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -40,17 +41,15 @@ rapidfuzz==3.14.6
 sparse-dot-topn==1.2.0
 pyarrow==25.0.1
 pyyaml==6.0.3
-psutil==7.2.2
-# only for the XGBoost ablation (python src/single/fit.py X xgb ...); not used by the submission
-xgboost==3.4.1
 """
 
-REQUIREMENTS_GPU = """# cross-encoder steps (src/ce/, src/stack/kaggle/): Kaggle GPU image (2x T4)
+REQUIREMENTS_GPU = """# cross-encoder steps of both families (src/ce/, src/stack/kaggle/): Kaggle GPU notebook, 2x T4
 torch==2.14.0
 transformers==5.17.0
 pandas==3.0.6
 pyarrow==25.0.1
 scikit-learn==1.9.1
+numpy==2.4.6
 """
 
 CONFIG = """data_dir: data
@@ -71,7 +70,7 @@ Run every command from this folder (`code/business_entity_resolution/`).
 - `artifacts/final/final_probs.parquet`: the final probability of every candidate pair, for the quick check below.
 - `config.yaml` (data and cache folders, seed), `requirements.txt` (CPU), `requirements-gpu.txt` (GPU steps).
 - `run_manifest.json`: the record of the final step (git commit, SHA256 of every source file, of the attempt settings
-  and of both outputs, library versions, runtime). `SHA256SUMS`: both outputs and the shipped artefacts.
+  and of both outputs, library versions, runtime). `SHA256SUMS`: every file of the package (check with `sha256sum -c SHA256SUMS`).
 
 ## Overview (data -> blocking -> matching -> output)
 1. **Data**: the organisers' TSVs are converted to parquet; names and addresses are normalized (native-script words mapped
@@ -142,7 +141,8 @@ python src/prepare_raw.py                         # TSV -> parquet (cache/raw)
 {pre}{evalline}
 {predictline}
 ```
-Then copy the outputs: `mkdir -p output && cp submissions/archive/NN_{attempt}.tsv output/matching_results.tsv && cp submissions/archive/NN_{attempt}.candidates.tsv output/candidate_pairs.tsv`
+Then copy the outputs to the package root (`NN` is the number the last command prints):
+`cp submissions/archive/NN_{attempt}.tsv ../../output/matching_results.tsv && cp submissions/archive/NN_{attempt}.candidates.tsv ../../output/candidate_pairs.tsv`
 and check them with the organisers' `utils/validate_submission.py --check-ids`.
 The attempt's settings are in `attempts/{attempt}/train.py`; defaults in `src/er_model.py`.
 
@@ -270,7 +270,6 @@ def main():
     tmp = z.with_suffix(".zip.tmp")
     base = "code/business_entity_resolution/"
     mod = load_attempt(attempt)
-    sums = []
     with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
         for f in SRC_FILES:
             zf.write(ROOT / "src" / f, base + "src/" + f)
@@ -302,16 +301,16 @@ def main():
             zf.writestr(base + "run_manifest.json", json.dumps(man_z, indent=1))
             probs = mt.with_suffix(".probs.parquet")
             zf.write(probs, base + "artifacts/final/final_probs.parquet", compress_type=zipfile.ZIP_STORED)
-            sums.append((sha256(probs), "artifacts/final/final_probs.parquet"))
-            sums += [(sha256(mt), "../../output/matching_results.tsv"), (sha256(ct), "../../output/candidate_pairs.tsv")]
             src = Path(load_config()["cache_dir"]) / ARTIFACTS[0]
             arts = sorted(f for g in ARTIFACTS[1:] for f in src.glob(g))
             if len(arts) != 13:
                 raise SystemExit(f"expected 13 second-family files in {src}, found {len(arts)}")
             for f in arts:
                 zf.write(f, base + f"artifacts/{ARTIFACTS[0]}/{f.name}", compress_type=zipfile.ZIP_STORED)
-                sums.append((sha256(f), f"artifacts/{ARTIFACTS[0]}/{f.name}"))
-            zf.writestr(base + "SHA256SUMS", "".join(f"{h}  {n}\n" for h, n in sums))
+    if a.final:
+        with zipfile.ZipFile(tmp, "a", zipfile.ZIP_DEFLATED) as zf:
+            rel = lambda n: n[len(base):] if n.startswith(base) else "../../" + n
+            zf.writestr(base + "SHA256SUMS", "".join(f"{hashlib.sha256(zf.read(n)).hexdigest()}  {rel(n)}\n" for n in sorted(zf.namelist())))
     names = zipfile.ZipFile(tmp).namelist()
     with zipfile.ZipFile(tmp) as zf:
         hits = [n for n in names if n != "Documentation_template.md" and not n.startswith("output/") and not n.endswith(".parquet") and BANNED.search(zf.read(n).decode("utf-8", "ignore"))]

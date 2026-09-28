@@ -12,12 +12,3 @@ NEW_ROUNDS = 300
 NEW_FILTER = 0.001
 NEW_SAMPLE = 0.1
 DEPENDS = ["023_comb", "018_lexical", "017_route", "016_stage2b", "006_stage2", "005n_indic_nocoh", "005f_floor"]
-PRE_STEPS = [
-    "# all steps of 023_comb and 024_keys, then (train side, every S1):",
-    "python src/er_keys.py --split train --tag _all && python src/er_rtext.py --split train --parent 023_comb --tag _all",
-    "python src/er_newpairs.py union 024f_keys --split train",
-    "python src/er_feat.py --split train --tag _allk && python src/er_feat2.py --split train --tag _allk && python src/er_feat5.py --split train --tag _allk",
-    "ln -s 017_route cache/models/024f_keys",
-    "python src/er_newpairs.py score 024f_keys --split train",
-]
-PREDICT = "# no test output of its own: 024f_keys adds train-side extra candidates; the test side is attempts/024_keys"
