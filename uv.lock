@@ -3,7 +3,7 @@ revision = 3
 requires-python = "==3.12.*"
 
 [[package]]
-name = "amazon-ml-2026"
+name = "amazon-ml-challenge-2026"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

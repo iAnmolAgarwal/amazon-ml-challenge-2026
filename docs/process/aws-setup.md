@@ -4,7 +4,7 @@ No secrets live in this repo. Access keys are only in `~/.aws/credentials` under
 
 | Item | Value |
 |---|---|
-| Account | `267150805041` |
+| Account | `(redacted)` |
 | Region | `us-east-1` (EC2 in every other region is explicitly denied) |
 | Working profile | `amlc` (IAM user `amlc-agent`, inline policy `amlc-agent-guardrails`; allowed instance types g5.xlarge, g5.2xlarge, t3.medium, r7a.2xlarge, m7a.2xlarge, r6a.2xlarge, r7i.2xlarge as of 2026-09-25 11:10 IST, user-approved) |
 | Admin profile | `agent-toolkit` (root, browser `aws login`); use only for IAM/billing changes |
