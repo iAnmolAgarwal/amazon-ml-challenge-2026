@@ -1,6 +1,6 @@
 # Amazon ML Challenge 2026: business entity resolution
 
-**#66 out of 10,000+ submissions.** Team Apprentice's entry to the Amazon ML Challenge 2026, built in the 72-hour window (25–28 September 2026).
+**#66 out of 10,000+ submissions (top 0.7%).** Team Apprentice's entry to the Amazon ML Challenge 2026, built in the 72-hour window (25–28 September 2026).
 
 | | |
 |---|---|
