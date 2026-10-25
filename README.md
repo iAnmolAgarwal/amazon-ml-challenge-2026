@@ -75,6 +75,6 @@ The heavy steps need a 64 GB machine. We used about 30–55 CPU hours on cloud V
 
 ## Team and how it was built
 
-Team Apprentice: Anmol Agarwal (team leader), Akshit Kumar Singh, Nitya Arora and Harsimran Singh.
+Built by Anmol Agarwal, team leader of Team Apprentice.
 
 The main pipeline was built in Claude Code: a lead session planned the work and handed experiments to two worker sessions, and Codex CLI audited each stage. Every change was accepted only on paired CV. The prompts, run book and review notes are kept as they were written in [docs/process/](docs/process/).
